@@ -97,7 +97,7 @@ class A3CAgent:
         self.sess.run(tf.global_variables_initializer())
 
         self.summary_placeholders, self.update_ops, self.summary_op = self.setup_summary()
-        self.summary_writer = None  # tf.summary.FileWriter('./summary/breakout_a3c', self.sess.graph)
+        self.summary_writer = None  # tf.summary.FileWriter('./summary/freeway_a3c', self.sess.graph)
 
     def train(self):
         workers = [
