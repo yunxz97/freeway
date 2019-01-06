@@ -57,6 +57,8 @@ class ChickenMovementFactor(Factors):
 
         transition_mtx[mtx_range, 1, 2, np.clip(mtx_range+speed+hit_impact, dist-1, 0)] = 1
 
+        transition_mtx = np.log(np.clip(transition_mtx, 1e-6, 1))
+
         potential = tf.constant(transition_mtx, dtype=tf.float32)
         self.transMatrix = transition_mtx
         self.potential = tf.get_variable(self.__class__.__name__, initializer=potential, trainable=train)
@@ -104,6 +106,8 @@ class HitFactor(Factors):
         transition_mtx[:, :, :, :, :, :, :, :, :, :, 0] = 0
         transition_mtx[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] = 1
 
+        transition_mtx = np.log(np.clip(transition_mtx, 1e-6, 1))
+
         potential = tf.constant(transition_mtx, dtype=tf.float32)
         self.transMatrix = transition_mtx
         self.potential = tf.get_variable(self.__class__.__name__, initializer=potential, trainable=train)
@@ -116,7 +120,9 @@ class DestinationRewardFactor(Factors):
 
         transition_mtx = np.array([0] * dist)
 
-        transition_mtx[:23] = 10000
+        transition_mtx[:23] = 10
+
+        transition_mtx = np.log(np.clip(transition_mtx, 1e-6, 10))
 
         potential = tf.constant(transition_mtx, dtype=tf.float32)
         self.transMatrix = transition_mtx

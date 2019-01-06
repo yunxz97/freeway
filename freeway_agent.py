@@ -102,23 +102,36 @@ class FreewayAgent:
         
         self.action_dim = [3]
 
-        self.add_in_state_factor()
-        self.add_cross_state_factor()
-        self.infer_net = InferNetRNN(
-            self.all_state_dim,
-            self.action_dim,
-            self.simulate_steps,
-            self.in_state_factor,
-            self.cross_state_factor,
-            self.max_bp_steps
-        )
+        with tf.variable_scope(self.scope + '_infer_net'):
+            self.add_in_state_factor()
+            self.add_cross_state_factor()
+            self.infer_net = InferNetPipeLine(
+                self.all_state_dim,
+                self.action_dim,
+                self.simulate_steps,
+                self.in_state_factor,
+                self.cross_state_factor,
+                self.max_bp_steps
+            )
 
-        self.init_state_pl = self.infer_net.init_belief
-        self.final_action_belief = self.infer_net.final_action
-        
-        self.final_state = self.infer_net.final_state
+            self.init_state_pl = self.infer_net.init_belief
+            self.final_action_belief = self.infer_net.final_action
 
-        self.policy = tf.nn.softmax(self.final_action_belief[0] * Temperature, axis=1) + 1e-8
+            self.final_state = self.infer_net.final_state
+
+            self.policy = tf.nn.softmax(self.final_action_belief[0] * Temperature, axis=1) + 1e-8
+
+            self.hidden1 = tf.concat([self.init_state_pl, self.final_action_belief[0]], axis=1)
+
+            # Critic Network (Value Network)
+            self.value = tf.layers.dense(
+                # inputs=tf.concat([self.init_state_pl, self.final_action_belief[0][0]], axis=1),
+                inputs=self.hidden1,
+                units=1,
+                name=self.scope + 'ValueLayer',
+                # kernel_initializer=tf.initializers.zeros)
+                kernel_initializer=tf.initializers.random_normal(0.01)
+            )
 
     def add_in_state_factor(self):
         self.car_hit_factors = [freeway_factors.CarHitFactor(car=i+1, train=True) for i in range(10)]
