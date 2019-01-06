@@ -71,17 +71,17 @@ class CarHitFactor(Factors):
         super().__init__()
         assert type(car) is int and 1 <= car <= 10
 
-        car1_y = slice(170, 185)
-        car2_y = slice(150, 170)
-        car3_y = slice(135, 150)
-        car4_y = slice(120, 135)
-        car5_y = slice(105, 120)
-        car6_y = slice(85, 105)
-        car7_y = slice(70, 85)
-        car8_y = slice(55, 70)
-        car9_y = slice(40, 55)
-        car10_y = slice(25, 40)
-        chicken_x = slice(40, 50)
+        car1_y = slice(167, 187)
+        car2_y = slice(151, 169)
+        car3_y = slice(135, 153)
+        car4_y = slice(119, 137)
+        car5_y = slice(104, 121)
+        car6_y = slice(87, 104)
+        car7_y = slice(71, 89)
+        car8_y = slice(55, 73)
+        car9_y = slice(39, 57)
+        car10_y = slice(23, 41)
+        chicken_x = slice(39, 55)
 
         car_slice = [car1_y, car2_y, car3_y, car4_y, car5_y,
                      car6_y, car7_y, car8_y, car9_y, car10_y][car-1]

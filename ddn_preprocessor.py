@@ -184,8 +184,7 @@ class DDNPreprocessor:
 
         state = np.zeros(Y + 10*X + 2*11)
         state[self.positions_tp1[0]] = 1
-
-        print(f"state: {np.concatenate([self.positions_tp1, hit]).tolist()}")
+        print(f"state     : {np.concatenate([self.positions_tp1, hit]).tolist()}")
         # print(hit)
         car_indices = Y + np.arange(10) * X + self.positions_tp1[1:]
         state[car_indices] = 1

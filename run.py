@@ -198,7 +198,7 @@ T_MAX = MAX_STEPS_PER_EPISODE
 BETA = 0.01  # ARGS.BETA
 MULT_FAC = 3  # set some random value here, not sure what is the approriate value
 SIM_STEPS = 10
-BP_STEPS = 100
+BP_STEPS = 50
 
 # load_model = ARGS.LOAD_MODEL
 # ENV_ARGS = {"gamma": GAMMA}
