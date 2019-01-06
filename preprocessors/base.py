@@ -186,9 +186,8 @@ class DDNBasePreprocessor:
         extracted = self.extract_state(observation)
         state = np.zeros(SCREEN_HEIGHT + 10*SCREEN_WIDTH + 2*11)
         state[self.positions_tp1[0]] = 1
-
         print(f"state: {np.concatenate([self.positions_tp1, self.hit]).tolist()}")
-        # print(hit)
+
         car_indices = SCREEN_HEIGHT + np.arange(10) * SCREEN_WIDTH + self.positions_tp1[1:]
         state[car_indices] = 1
 

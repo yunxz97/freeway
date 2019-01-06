@@ -61,7 +61,7 @@ Temperature = 10
 
 
 class FreewayBaseAgent:
-    def __init__(self, **kwargs):
+    def __init__(self, variable_range=variable_range, **kwargs):
 
         if 'simulate_steps' not in kwargs.keys():
             raise ValueError('Planning steps must be specified by argument simulate_steps!')

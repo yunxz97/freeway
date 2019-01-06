@@ -8,9 +8,24 @@ import ac_net_freeway as ac_net
 import gym
 import tf_utils
 
-from preprocessors.base import DDNBasePreprocessor as Processor
-from agents.base import FreewayBaseAgent as Agent
-from agents.base import variable_range
+import sys
+
+if len(sys.argv) > 1:
+    MODEL_TYPE = sys.argv[1]
+else:
+    MODEL_TYPE = "Base" # ["Base", "Decomposed"]
+print("Using model type: {}".format(MODEL_TYPE))
+
+if MODEL_TYPE == "Base":
+    from preprocessors.base import DDNBasePreprocessor as Processor
+    from agents.base import FreewayBaseAgent as Agent
+    from agents.base import variable_range
+elif MODEL_TYPE == "Decomposed":
+    from preprocessors.decomposed import DDNDecomposedPreprocessor as Processor
+    from agents.decomposed import FreewayDecomposedAgent as Agent
+    from agents.decomposed import variable_range
+else:
+    raise "Model Type Not Implemented"
 
 MAX_STEPS_PER_EPISODE = 1000
 Step = namedtuple('Step', 'cur_step action next_step reward done')
@@ -202,7 +217,7 @@ T_MAX = MAX_STEPS_PER_EPISODE
 BETA = 0.01  # ARGS.BETA
 MULT_FAC = 3  # set some random value here, not sure what is the approriate value
 SIM_STEPS = 10
-BP_STEPS = 100
+BP_STEPS = 50
 
 # load_model = ARGS.LOAD_MODEL
 # ENV_ARGS = {"gamma": GAMMA}
