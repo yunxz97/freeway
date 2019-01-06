@@ -1,15 +1,20 @@
 import numpy as np
 import tensorflow as tf
 from lib.transition import Factors
-
-TRAIN_FACTOR_WEIGHTS = True
-
-X = 160
-Y = 210
+from constants import SMALL_NON_ZERO, TRAIN_FACTOR_WEIGHTS, SCREEN_WIDTH, SCREEN_HEIGHT
 
 
-class CarMovementFactor(Factors):
-    def __init__(self, car, dist=X, train=TRAIN_FACTOR_WEIGHTS):
+class FactorWrapper(Factors):
+    def build(self, transitionMat, train, name='', max_clip_value=1):
+        transitionMat = np.log(np.clip(transitionMat, SMALL_NON_ZERO, max_clip_value))
+        potential = tf.constant(transitionMat, dtype=tf.float32)
+        self.transMatrix = transitionMat
+        self.potential = tf.get_variable(self.__class__.__name__+str(name) , initializer=potential, trainable=train)
+        self.beliefs = self.potential
+
+
+class CarMovementFactor(FactorWrapper):
+    def __init__(self, car, dist=SCREEN_WIDTH, train=TRAIN_FACTOR_WEIGHTS):
         super().__init__()
         assert type(car) is int and 1 <= car <= 10
         speed = [1, 1, 2, 2, 4, -4, -2, -2, -1, -1][car-1]
@@ -25,16 +30,11 @@ class CarMovementFactor(Factors):
         else:
             transition_mtx[mtx_range, (mtx_range+speed) % dist] = 1
 
-        transition_mtx = np.log(np.clip(transition_mtx, 1e-100, 1))
-
-        potential = tf.constant(transition_mtx, dtype=tf.float32)
-        self.transMatrix = transition_mtx
-        self.potential = tf.get_variable(self.__class__.__name__+str(car), initializer=potential, trainable=train)
-        self.beliefs = self.potential
+        self.build(transition_mtx, train, name=car, max_clip_value=1)
 
 
-class ChickenMovementFactor(Factors):
-    def __init__(self, dist=Y, train=TRAIN_FACTOR_WEIGHTS):
+class ChickenMovementFactor(FactorWrapper):
+    def __init__(self, dist=SCREEN_HEIGHT, train=TRAIN_FACTOR_WEIGHTS):
         super().__init__()
         speed = 4
         hit_impact = 25
@@ -58,15 +58,10 @@ class ChickenMovementFactor(Factors):
         # print(transition_mtx[191, 0, 1])
         # print(transition_mtx[191, 0, 2])
 
-        transition_mtx = np.log(np.clip(transition_mtx, 1e-100, 1))
-
-        potential = tf.constant(transition_mtx, dtype=tf.float32)
-        self.transMatrix = transition_mtx
-        self.potential = tf.get_variable(self.__class__.__name__, initializer=potential, trainable=train)
-        self.beliefs = self.potential
+        self.build(transition_mtx, train, max_clip_value=1)
 
 
-class CarHitFactor(Factors):
+class CarHitFactor(FactorWrapper):
     def __init__(self, car, train=TRAIN_FACTOR_WEIGHTS):
         super().__init__()
         assert type(car) is int and 1 <= car <= 10
@@ -91,15 +86,10 @@ class CarHitFactor(Factors):
         transition_mtx[:, :, 0] = 1
         transition_mtx[car_slice, chicken_x, 0] = 0
 
-        transition_mtx = np.log(np.clip(transition_mtx, 1e-100, 1))
-
-        potential = tf.constant(transition_mtx, dtype=tf.float32)
-        self.transMatrix = transition_mtx
-        self.potential = tf.get_variable(self.__class__.__name__+str(car), initializer=potential, trainable=train)
-        self.beliefs = self.potential
+        self.build(transition_mtx, train, name=car, max_clip_value=1)
 
 
-class HitFactor(Factors):
+class HitFactor(FactorWrapper):
     def __init__(self, train=TRAIN_FACTOR_WEIGHTS):
         super().__init__()
 
@@ -109,44 +99,26 @@ class HitFactor(Factors):
         transition_mtx[:, :, :, :, :, :, :, :, :, :, 0] = 0
         transition_mtx[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] = 1
 
-        transition_mtx = np.log(np.clip(transition_mtx, 1e-100, 1))
-
-        potential = tf.constant(transition_mtx, dtype=tf.float32)
-        self.transMatrix = transition_mtx
-        self.potential = tf.get_variable(self.__class__.__name__, initializer=potential, trainable=train)
-        self.beliefs = self.potential
+        self.build(transition_mtx, train, max_clip_value=1)
 
 
-class DestinationRewardFactor(Factors):
-    def __init__(self, dist=Y, train=TRAIN_FACTOR_WEIGHTS):
+class DestinationRewardFactor(FactorWrapper):
+    def __init__(self, dist=SCREEN_HEIGHT, train=TRAIN_FACTOR_WEIGHTS):
         super().__init__()
 
         transition_mtx = np.ones(dist)
 
         transition_mtx[:23] = 10000
 
-        transition_mtx = np.log(np.clip(transition_mtx, 1e-100, 10000))
-
-        potential = tf.constant(transition_mtx, dtype=tf.float32)
-        self.transMatrix = transition_mtx
-        self.potential = tf.get_variable(self.__class__.__name__, initializer=potential, trainable=train)
-        self.beliefs = self.potential
+        self.build(transition_mtx, train, max_clip_value=10000)
 
 
-class YRewardFactor(Factors):
-    def __init__(self, dist=Y, train=TRAIN_FACTOR_WEIGHTS):
+class YRewardFactor(FactorWrapper):
+    def __init__(self, dist=SCREEN_HEIGHT, train=TRAIN_FACTOR_WEIGHTS):
         super().__init__()
 
         transition_mtx = np.arange(1, .99, -.01/dist)[:dist]
         # print(transition_mtx)
-
-        transition_mtx = np.log(np.clip(transition_mtx, 1e-100, dist))
-
-        potential = tf.constant(transition_mtx, dtype=tf.float32)
-        self.transMatrix = transition_mtx
-        self.potential = tf.get_variable(self.__class__.__name__, initializer=potential, trainable=train)
-        self.beliefs = self.potential
-
-
+        self.build(transition_mtx, train, max_clip_value=dist)
 
 

@@ -4,7 +4,7 @@ from copy import deepcopy
 import numpy as np
 import tensorflow as tf
 
-import freeway_factors
+import factors.base as freeway_factors
 from lib.basic_infer_unit import InferNetPipeLine, InferNetRNN
 
 variable_mapping = {
@@ -60,7 +60,7 @@ variable_range = {
 Temperature = 10
 
 
-class FreewayAgent:
+class FreewayBaseAgent:
     def __init__(self, **kwargs):
 
         if 'simulate_steps' not in kwargs.keys():
@@ -75,31 +75,7 @@ class FreewayAgent:
         if not hasattr(self, 'scope'):
             self.scope = "unnamed_worker"
 
-        self.all_state_dim = [
-            variable_range['chicken_y'],
-            variable_range['car1_x'],
-            variable_range['car2_x'],
-            variable_range['car3_x'],
-            variable_range['car4_x'],
-            variable_range['car5_x'],
-            variable_range['car6_x'],
-            variable_range['car7_x'],
-            variable_range['car8_x'],
-            variable_range['car9_x'],
-            variable_range['car10_x'],
-            variable_range["car1_hit"],
-            variable_range["car2_hit"],
-            variable_range["car3_hit"],
-            variable_range["car4_hit"],
-            variable_range["car5_hit"],
-            variable_range["car6_hit"],
-            variable_range["car7_hit"],
-            variable_range["car8_hit"],
-            variable_range["car9_hit"],
-            variable_range["car10_hit"],
-            variable_range["hit"],
-        ]
-        
+        self.all_state_dim = list(variable_range.values())
         self.action_dim = [3]
 
         with tf.variable_scope(self.scope + '_infer_net'):
