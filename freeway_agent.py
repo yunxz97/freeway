@@ -137,6 +137,7 @@ class FreewayAgent:
         self.car_hit_factors = [freeway_factors.CarHitFactor(car=i+1, train=True) for i in range(10)]
         self.hit_factor = freeway_factors.HitFactor(train=True)
         self.dest_reward_factor = freeway_factors.DestinationRewardFactor(train=True)
+        self.Y_reward_factor = freeway_factors.YRewardFactor(train=True)
 
         self.in_state_factor = [
             self.create_in_state_factor(
@@ -150,10 +151,15 @@ class FreewayAgent:
                 [variable_mapping["car" + str(i) + "_hit"] for i in range(1, 11)] + [variable_mapping["hit"]],
                 self.hit_factor)
         )
+        # self.in_state_factor.append(
+        #     self.create_in_state_factor(
+        #         [variable_mapping["chicken_y"]],
+        #         self.dest_reward_factor)
+        # )
         self.in_state_factor.append(
             self.create_in_state_factor(
                 [variable_mapping["chicken_y"]],
-                self.dest_reward_factor)
+                self.Y_reward_factor)
         )
 
     def create_in_state_factor(self, factor_nodes, factor):

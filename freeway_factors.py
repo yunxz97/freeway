@@ -3,9 +3,6 @@ import tensorflow as tf
 from lib.transition import Factors
 
 TRAIN_FACTOR_WEIGHTS = True
-INFINITY = 10
-SPEED_RANGE = 21  # -10 ~ 10
-max_speed = 10
 
 X = 160
 Y = 210
@@ -28,7 +25,7 @@ class CarMovementFactor(Factors):
         else:
             transition_mtx[mtx_range, (mtx_range+speed) % dist] = 1
 
-        transition_mtx = np.log(np.clip(transition_mtx, 1e-6, 1))
+        transition_mtx = np.log(np.clip(transition_mtx, 1e-100, 1))
 
         potential = tf.constant(transition_mtx, dtype=tf.float32)
         self.transMatrix = transition_mtx
@@ -47,17 +44,21 @@ class ChickenMovementFactor(Factors):
 
         transition_mtx[mtx_range, 0, 0, mtx_range] = 1
 
-        transition_mtx[mtx_range, 0, 1, np.clip(mtx_range-speed, dist-1, 0)] = 1
+        transition_mtx[mtx_range, 0, 1, np.clip(mtx_range-speed, 0, dist-1)] = 1
 
-        transition_mtx[mtx_range, 0, 2, np.clip(mtx_range+speed, dist-1, 0)] = 1
+        transition_mtx[mtx_range, 0, 2, np.clip(mtx_range+speed, 0, dist-1)] = 1
 
-        transition_mtx[mtx_range, 1, 0, np.clip(mtx_range+hit_impact, dist-1, 0)] = 1
+        transition_mtx[mtx_range, 1, 0, np.clip(mtx_range+hit_impact, 0, dist-1)] = 1
 
-        transition_mtx[mtx_range, 1, 1, np.clip(mtx_range-speed+hit_impact, dist-1, 0)] = 1
+        transition_mtx[mtx_range, 1, 1, np.clip(mtx_range-speed+hit_impact, 0, dist-1)] = 1
 
-        transition_mtx[mtx_range, 1, 2, np.clip(mtx_range+speed+hit_impact, dist-1, 0)] = 1
+        transition_mtx[mtx_range, 1, 2, np.clip(mtx_range+speed+hit_impact, 0, dist-1)] = 1
 
-        transition_mtx = np.log(np.clip(transition_mtx, 1e-6, 1))
+        # print(transition_mtx[191, 0, 0])
+        # print(transition_mtx[191, 0, 1])
+        # print(transition_mtx[191, 0, 2])
+
+        transition_mtx = np.log(np.clip(transition_mtx, 1e-100, 1))
 
         potential = tf.constant(transition_mtx, dtype=tf.float32)
         self.transMatrix = transition_mtx
@@ -80,15 +81,17 @@ class CarHitFactor(Factors):
         car8_y = slice(55, 70)
         car9_y = slice(40, 55)
         car10_y = slice(25, 40)
-        chicken_x = slice(44, 48)
+        chicken_x = slice(40, 50)
 
         car_slice = [car1_y, car2_y, car3_y, car4_y, car5_y,
                      car6_y, car7_y, car8_y, car9_y, car10_y][car-1]
 
         transition_mtx = np.zeros([210, 160, 2])
         transition_mtx[car_slice, chicken_x, 1] = 1
+        transition_mtx[:, :, 0] = 1
+        transition_mtx[car_slice, chicken_x, 0] = 0
 
-        transition_mtx = np.log(np.clip(transition_mtx, 1e-6, 1))
+        transition_mtx = np.log(np.clip(transition_mtx, 1e-100, 1))
 
         potential = tf.constant(transition_mtx, dtype=tf.float32)
         self.transMatrix = transition_mtx
@@ -106,7 +109,7 @@ class HitFactor(Factors):
         transition_mtx[:, :, :, :, :, :, :, :, :, :, 0] = 0
         transition_mtx[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] = 1
 
-        transition_mtx = np.log(np.clip(transition_mtx, 1e-6, 1))
+        transition_mtx = np.log(np.clip(transition_mtx, 1e-100, 1))
 
         potential = tf.constant(transition_mtx, dtype=tf.float32)
         self.transMatrix = transition_mtx
@@ -118,11 +121,26 @@ class DestinationRewardFactor(Factors):
     def __init__(self, dist=Y, train=TRAIN_FACTOR_WEIGHTS):
         super().__init__()
 
-        transition_mtx = np.array([0] * dist)
+        transition_mtx = np.ones(dist)
 
-        transition_mtx[:23] = 10
+        transition_mtx[:23] = 10000
 
-        transition_mtx = np.log(np.clip(transition_mtx, 1e-6, 10))
+        transition_mtx = np.log(np.clip(transition_mtx, 1e-100, 10000))
+
+        potential = tf.constant(transition_mtx, dtype=tf.float32)
+        self.transMatrix = transition_mtx
+        self.potential = tf.get_variable(self.__class__.__name__, initializer=potential, trainable=train)
+        self.beliefs = self.potential
+
+
+class YRewardFactor(Factors):
+    def __init__(self, dist=Y, train=TRAIN_FACTOR_WEIGHTS):
+        super().__init__()
+
+        transition_mtx = np.arange(1, .99, -.01/dist)[:dist]
+        # print(transition_mtx)
+
+        transition_mtx = np.log(np.clip(transition_mtx, 1e-100, dist))
 
         potential = tf.constant(transition_mtx, dtype=tf.float32)
         self.transMatrix = transition_mtx

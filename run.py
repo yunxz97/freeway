@@ -9,7 +9,7 @@ import gym
 import tf_utils
 from ddn_preprocessor import DDNPreprocessor
 
-MAX_STEPS_PER_EPISODE = 100
+MAX_STEPS_PER_EPISODE = 1000
 Step = namedtuple('Step', 'cur_step action next_step reward done')
 
 preprocessor_for_ddn = DDNPreprocessor()
@@ -193,12 +193,12 @@ STATE_SIZE = sum(all_state_dim)
 ACTION_SIZE = 3
 
 LEARNING_RATE = 0.00025
-GAMMA = 1  # 0.99
-T_MAX = 6
+GAMMA = .99  # 0.99
+T_MAX = MAX_STEPS_PER_EPISODE
 BETA = 0.01  # ARGS.BETA
 MULT_FAC = 3  # set some random value here, not sure what is the approriate value
-SIM_STEPS = 3
-BP_STEPS = 4
+SIM_STEPS = 10
+BP_STEPS = 100
 
 # load_model = ARGS.LOAD_MODEL
 # ENV_ARGS = {"gamma": GAMMA}
@@ -210,7 +210,7 @@ sess = tf.Session(config=config)
 # sess = tf_debug.TensorBoardDebugWrapperSession(sess, "Yuyangs-MacBook-Pro.local:6064")
 
 worker = Worker(
-    env=gym.make("Freeway-v0"),
+    env=gym.make("FreewayDeterministic-v4"),
     state_size=STATE_SIZE, action_size=ACTION_SIZE,
     lr=LEARNING_RATE,
     gamma=GAMMA, t_max=T_MAX, sess=sess,

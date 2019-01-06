@@ -103,7 +103,7 @@ class ACNetFreeway(object):
             final_action_belief = self.agent.final_action_belief * Temperature
             self.final_state = self.agent.final_state
 
-            if LAYER_OVER_POLICY == True:
+            if LAYER_OVER_POLICY:
                 policy = tf_utils.fc(
                     final_action_belief,
                     self.action_size,
@@ -185,9 +185,10 @@ class ACNetFreeway(object):
 
         # policy = sess.run(self.policy, feed_dict)
         [policy, final_state] = sess.run([self.policy, self.final_state], feed_dict)
-        # print(len(final_state))
-        print(final_state)
-        # print(policy)
+        # print(np.where(state[0][370:530]))
+        print(f"prediction: {[np.argmax(s) for s in final_state]}")
+        # print(final_state[0])
+        print(f"policy: {policy[0]}\n==============================================")
 
         # policy = tf_utils.run_with_timeline_recorded(sess, self.policy, feed_dict)
         # return np.random.choice(range(self.action_size), p=policy[0])

@@ -172,9 +172,10 @@ class DDNPreprocessor:
 
         hit_combined = any(hit)
 
-        return [*hit, hit_combined]
+        return np.array([*hit, hit_combined], dtype=int)
 
     def extract_state(self, im):
+
         self.extract_positions(im)
         hit = self.extract_hit()
         speed = self.positions_tp1 - self.positions_t
@@ -184,12 +185,15 @@ class DDNPreprocessor:
         state = np.zeros(Y + 10*X + 2*11)
         state[self.positions_tp1[0]] = 1
 
+        print(f"state: {np.concatenate([self.positions_tp1, hit]).tolist()}")
+        # print(hit)
         car_indices = Y + np.arange(10) * X + self.positions_tp1[1:]
         state[car_indices] = 1
 
         hit_indices = Y + X * 10 + np.arange(11) * 2 + hit
         state[hit_indices] = 1
 
+        # print(np.where(state[370:530])
         return state
 
     def obs_to_state(self, observation):
