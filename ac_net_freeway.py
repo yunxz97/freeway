@@ -187,7 +187,7 @@ class ACNetFreeway(object):
         [policy, final_state] = sess.run([self.policy, self.final_state], feed_dict)
         # print(len(final_state))
         print(final_state)
-        print(policy)
+        # print(policy)
 
         # policy = tf_utils.run_with_timeline_recorded(sess, self.policy, feed_dict)
         # return np.random.choice(range(self.action_size), p=policy[0])
