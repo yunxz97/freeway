@@ -31,12 +31,10 @@ class PlayerLaneFactor(FactorWrapper):
             ],
             dtype=np.float32
         )
-        for player_y in range(SCREEN_HEIGHT):
-            lane = 0
-            for lane_top, lane_bottom in LANES:
-                if lane_top <= player_y and player_y <= lane_bottom:
-                    transitionMat[player_y, lane] = 1
-                lane += 1
+        lane = 0
+        for lane_top, lane_bottom in LANES:
+            transitionMat[slice(lane_top, lane_bottom), lane] = 1
+            lane += 1
         self.build(transitionMat, train)
 
 
@@ -47,10 +45,14 @@ class PlayerCollisionFactor(FactorWrapper):
             shape=[2]*10 + [MAX_LANE, 2],
             dtype=np.float32
         )
-        for car in range(MAX_LANE):
-            for lane in range(MAX_LANE):
-                for collision in range(2):
-                    if car == lane and collision:
-                        index = tuple(np.concatenate([one_hot(car, MAX_LANE), [lane], [collision]]))
-                        transitionMat[index] = 1
+        transitionMat[1, :, :, :, :, :, :, :, :, :, 0, 1] = 1
+        transitionMat[:, 1, :, :, :, :, :, :, :, :, 1, 1] = 1
+        transitionMat[:, :, 1, :, :, :, :, :, :, :, 2, 1] = 1
+        transitionMat[:, :, :, 1, :, :, :, :, :, :, 3, 1] = 1
+        transitionMat[:, :, :, :, 1, :, :, :, :, :, 4, 1] = 1
+        transitionMat[:, :, :, :, :, 1, :, :, :, :, 5, 1] = 1
+        transitionMat[:, :, :, :, :, :, 1, :, :, :, 6, 1] = 1
+        transitionMat[:, :, :, :, :, :, :, 1, :, :, 7, 1] = 1
+        transitionMat[:, :, :, :, :, :, :, :, 1, :, 8, 1] = 1
+        transitionMat[:, :, :, :, :, :, :, :, :, 1, 9, 1] = 1
         self.build(transitionMat, train)
