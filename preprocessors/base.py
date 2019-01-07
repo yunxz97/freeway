@@ -1,6 +1,7 @@
-from constants import SCREEN_WIDTH, SCREEN_HEIGHT
+from constants import SCREEN_WIDTH, SCREEN_HEIGHT, SMALL_NON_ZERO, SMALL_LOG_NON_ZERO
 import numpy as np
 from scipy import signal
+from utils import to_log_probability
 
 """
     "chicken_y": 0,
@@ -195,5 +196,5 @@ class DDNBasePreprocessor:
         state[hit_indices] = 1
 
         # print(np.where(state[370:530])
-        return state
+        return to_log_probability(state, SMALL_NON_ZERO, 1)
 

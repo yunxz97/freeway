@@ -187,6 +187,7 @@ class ACNetFreeway(object):
         # print(np.where(state[0][370:530]))
         print(f"prediction: {[np.argmax(s) for s in final_state]}")
         print("normalized risk: {:.2%}".format(final_state[21][0][1] / sum(final_state[21][0])))
+        print(final_state[0])
         print(f"action: {np.argmax(policy[0])}\n==============================================")
 
         # policy = tf_utils.run_with_timeline_recorded(sess, self.policy, feed_dict)

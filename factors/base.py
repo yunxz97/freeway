@@ -2,11 +2,12 @@ import numpy as np
 import tensorflow as tf
 from lib.transition import Factors
 from constants import SMALL_NON_ZERO, TRAIN_FACTOR_WEIGHTS, SCREEN_WIDTH, SCREEN_HEIGHT, HIT_IMPACT, PLAYER_MOVE_SPEED
+from utils import to_log_probability
 
 
 class FactorWrapper(Factors):
     def build(self, transitionMat, train, name='', max_clip_value=1):
-        transitionMat = np.log(np.clip(transitionMat, SMALL_NON_ZERO, max_clip_value))
+        transitionMat = to_log_probability(transitionMat, SMALL_NON_ZERO, max_clip_value)
         potential = tf.constant(transitionMat, dtype=tf.float32)
         self.transMatrix = transitionMat
         self.potential = tf.get_variable(self.__class__.__name__+str(name) , initializer=potential, trainable=train)
