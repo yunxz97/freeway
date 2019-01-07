@@ -1,6 +1,7 @@
-from freeway_factors import X, Y
+from constants import SCREEN_WIDTH, SCREEN_HEIGHT, SMALL_NON_ZERO, SMALL_LOG_NON_ZERO
 import numpy as np
 from scipy import signal
+from utils import to_log_probability
 
 """
     "chicken_y": 0,
@@ -27,7 +28,7 @@ from scipy import signal
     "hit": 21
 """
 
-class DDNPreprocessor:
+class DDNBasePreprocessor:
     def __init__(self, im=None):
         self.im = im
         self.positions_t = [0]
@@ -175,26 +176,25 @@ class DDNPreprocessor:
         return np.array([*hit, hit_combined], dtype=int)
 
     def extract_state(self, im):
-
         self.extract_positions(im)
-        hit = self.extract_hit()
+        self.hit = self.extract_hit()
         speed = self.positions_tp1 - self.positions_t
         missing_val_mask = np.logical_or(self.positions_t == 0, self.positions_tp1 == 0)
         speed[missing_val_mask] = 0
+        return np.concatenate([self.positions_tp1, self.hit])
 
-        state = np.zeros(Y + 10*X + 2*11)
+    def obs_to_state(self, observation):
+        extracted = self.extract_state(observation)
+        state = np.zeros(SCREEN_HEIGHT + 10*SCREEN_WIDTH + 2*11)
         state[self.positions_tp1[0]] = 1
-        print(f"state     : {np.concatenate([self.positions_tp1, hit]).tolist()}")
-        # print(hit)
-        car_indices = Y + np.arange(10) * X + self.positions_tp1[1:]
+        print(f"state: {np.concatenate([self.positions_tp1, self.hit]).tolist()}")
+
+        car_indices = SCREEN_HEIGHT + np.arange(10) * SCREEN_WIDTH + self.positions_tp1[1:]
         state[car_indices] = 1
 
-        hit_indices = Y + X * 10 + np.arange(11) * 2 + hit
+        hit_indices = SCREEN_HEIGHT + SCREEN_WIDTH * 10 + np.arange(11) * 2 + self.hit
         state[hit_indices] = 1
 
         # print(np.where(state[370:530])
-        return state
-
-    def obs_to_state(self, observation):
-        return self.extract_state(observation)
+        return to_log_probability(state, SMALL_NON_ZERO, 1)
 

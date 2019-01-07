@@ -7,12 +7,30 @@ import tensorflow as tf
 import ac_net_freeway as ac_net
 import gym
 import tf_utils
-from ddn_preprocessor import DDNPreprocessor
+
+import sys
+
+if len(sys.argv) > 1:
+    MODEL_TYPE = sys.argv[1]
+else:
+    MODEL_TYPE = "Base" # ["Base", "Decomposed"]
+print("Using model type: {}".format(MODEL_TYPE))
+
+if MODEL_TYPE == "Base":
+    from preprocessors.base import DDNBasePreprocessor as Processor
+    from agents.base import FreewayBaseAgent as Agent
+    from agents.base import variable_range
+elif MODEL_TYPE == "Decomposed":
+    from preprocessors.decomposed import DDNDecomposedPreprocessor as Processor
+    from agents.decomposed import FreewayDecomposedAgent as Agent
+    from agents.decomposed import variable_range
+else:
+    raise "Model Type Not Implemented"
 
 MAX_STEPS_PER_EPISODE = 1000
 Step = namedtuple('Step', 'cur_step action next_step reward done')
 
-preprocessor_for_ddn = DDNPreprocessor()
+preprocessor_for_ddn = Processor()
 
 
 class Worker:
@@ -34,6 +52,7 @@ class Worker:
         self.model_path = model_path
 
         self.local_model = ac_net.ACNetFreeway(
+            Agent,
             state_size, action_size, lr,
             name=worker_name,
             env_args=agent_args,
@@ -187,7 +206,7 @@ class Worker:
             # count += 1
 
 
-all_state_dim = [210] + [160] * 10 + [2] * 11
+all_state_dim = list(variable_range.values())
 
 STATE_SIZE = sum(all_state_dim)
 ACTION_SIZE = 3

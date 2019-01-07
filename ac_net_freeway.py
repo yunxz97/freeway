@@ -4,7 +4,6 @@ import tensorflow.contrib.layers as tcl
 
 import tf_utils
 from lib.basic_infer_unit import InferNetPipeLine
-from freeway_agent import FreewayAgent
 
 Temperature = 1
 LAYER_OVER_POLICY = False
@@ -14,7 +13,7 @@ class ACNetFreeway(object):
     '''Actor-critic network class for a3c'''
 
     def __init__(
-            self, state_size, action_size, lr,
+            self, agent_class, state_size, action_size, lr,
             name, SIM_STEPS, BP_STEPS, MULT_FAC,
             env_args, BETA,
             global_name,
@@ -31,7 +30,7 @@ class ACNetFreeway(object):
 
         self.optimizer = tf.train.RMSPropOptimizer(lr)
         self.input_s, self.input_a, self.advantage, self.target_v, self.policy, self.value, self.action_est, self.model_variables = self._build_network(
-            name)
+            name, agent_class)
 
         # 0.5, 0.2, 1.0
         self.value_loss = 0.5 * tf.reduce_mean(tf.square(self.target_v - tf.reshape(self.value, [-1])))
@@ -56,7 +55,7 @@ class ACNetFreeway(object):
 
         self.gradients = [p[0] for p in z]  # TODO: temp add
 
-    def _build_network(self, name):
+    def _build_network(self, name, agent_class):
         # input_s = tf.placeholder(tf.float32, [None, self.state_size])
         input_a = tf.placeholder(tf.int32, [None])
         advantage = tf.placeholder(tf.float32, [None])
@@ -86,7 +85,7 @@ class ACNetFreeway(object):
             # value = tf_utils.fc(layer_2, 1, activation_fn=None,
             #                     scope="value", initializer=tf_utils.normalized_columns_initializer(1.0))
 
-            self.agent = FreewayAgent(
+            self.agent = agent_class(
                 simulate_steps=self.SIM_STEPS,
                 max_bp_steps=self.BP_STEPS,
                 mult_fac=self.MULT_FAC,
@@ -188,6 +187,7 @@ class ACNetFreeway(object):
         # print(np.where(state[0][370:530]))
         print(f"prediction: {[np.argmax(s) for s in final_state]}")
         print("normalized risk: {:.2%}".format(final_state[21][0][1] / sum(final_state[21][0])))
+        print(final_state[0])
         print(f"action: {np.argmax(policy[0])}\n==============================================")
 
         # policy = tf_utils.run_with_timeline_recorded(sess, self.policy, feed_dict)
