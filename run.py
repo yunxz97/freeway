@@ -9,6 +9,9 @@ import gym
 import tf_utils
 
 import sys
+import os
+
+from gym.wrappers.monitoring.video_recorder import VideoRecorder
 
 if len(sys.argv) > 1:
     MODEL_TYPE = sys.argv[1]
@@ -31,6 +34,9 @@ MAX_STEPS_PER_EPISODE = 1000
 Step = namedtuple('Step', 'cur_step action next_step reward done')
 
 preprocessor_for_ddn = Processor()
+
+BASE_VIDEO_PATH = 'videos'
+os.makedirs(BASE_VIDEO_PATH, exist_ok=True)
 
 
 class Worker:
@@ -82,6 +88,10 @@ class Worker:
         # need_restart = True
 
         while episode_i < n_episodes:
+            # setup video recorder
+            video_path = os.path.join(BASE_VIDEO_PATH, f"{episode_i}.mp4")
+            video_recorder = VideoRecorder(self.env, video_path, enabled=video_path is not None)
+
             # 1) sync from global model to local model
             self._copy_to_local()
 
@@ -104,7 +114,8 @@ class Worker:
                 #     need_restart = True
                 #     start_life = info['ale.lives']
 
-                self.env.render()
+                # capture video
+                video_recorder.capture_frame()
 
                 # reward *= MULT_FAC
                 cum_reward += np.power(self.gamma, episode_len) * reward
@@ -147,6 +158,12 @@ class Worker:
                     cur_state = preprocessor_for_ddn.obs_to_state(self.env.reset())
                     break
                 cur_state = next_state
+
+            # save video
+            print(f"Saving video to {video_path}")
+            video_recorder.close()
+            video_recorder.enabled = False
+            print(f"Video saved")
 
             # 3) convert the t_max steps into a batch
             if steps[-1].done:
