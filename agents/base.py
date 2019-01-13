@@ -61,7 +61,7 @@ Temperature = 10
 
 
 class FreewayBaseAgent:
-    def __init__(self, variable_range=variable_range, **kwargs):
+    def __init__(self, variable_range=variable_range, factors=freeway_factors, **kwargs):
 
         if 'simulate_steps' not in kwargs.keys():
             raise ValueError('Planning steps must be specified by argument simulate_steps!')
@@ -77,6 +77,8 @@ class FreewayBaseAgent:
 
         self.all_state_dim = list(variable_range.values())
         self.action_dim = [3]
+
+        self.factors = factors
 
         with tf.variable_scope(self.scope + '_infer_net'):
             self.add_in_state_factor()
@@ -110,10 +112,10 @@ class FreewayBaseAgent:
             )
 
     def add_in_state_factor(self):
-        self.car_hit_factors = [freeway_factors.CarHitFactor(car=i+1, train=True) for i in range(10)]
-        self.hit_factor = freeway_factors.HitFactor(train=True)
-        self.dest_reward_factor = freeway_factors.DestinationRewardFactor(train=True)
-        self.Y_reward_factor = freeway_factors.YRewardFactor(train=True)
+        self.car_hit_factors = [self.factors.CarHitFactor(car=i+1, train=True) for i in range(10)]
+        self.hit_factor = self.factors.HitFactor(train=True)
+        self.dest_reward_factor = self.factors.DestinationRewardFactor(train=True)
+        self.Y_reward_factor = self.factors.YRewardFactor(train=True)
 
         self.in_state_factor = [
             self.create_in_state_factor(
@@ -146,8 +148,8 @@ class FreewayBaseAgent:
         return cfactor
 
     def add_cross_state_factor(self):
-        self.car_move_factors = [freeway_factors.CarMovementFactor(car=i+1, train=True) for i in range(10)]
-        self.chicken_move_factor = freeway_factors.ChickenMovementFactor(train=True)
+        self.car_move_factors = [self.factors.CarMovementFactor(car=i+1, train=True) for i in range(10)]
+        self.chicken_move_factor = self.factors.ChickenMovementFactor(train=True)
 
         self.cross_state_factor = [
             self.create_cross_state_factor(

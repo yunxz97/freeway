@@ -27,6 +27,10 @@ elif MODEL_TYPE == "Decomposed":
     from preprocessors.decomposed import DDNDecomposedPreprocessor as Processor
     from agents.decomposed import FreewayDecomposedAgent as Agent
     from agents.decomposed import variable_range
+if MODEL_TYPE == "Learnable":
+    from preprocessors.base import DDNBasePreprocessor as Processor
+    from agents.learnable import FreewayLearnableAgent as Agent
+    from agents.learnable import variable_range
 else:
     raise "Model Type Not Implemented"
 

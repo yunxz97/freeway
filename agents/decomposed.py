@@ -1,6 +1,7 @@
 from constants import SCREEN_HEIGHT, SCREEN_WIDTH, MAX_LANE
-from factors.decomposed import *
 from agents.base import FreewayBaseAgent
+
+import factors.decomposed as freeway_factors
 
 variable_mapping = {
     "player_y": 0,
@@ -57,13 +58,13 @@ variable_range = {
 
 class FreewayDecomposedAgent(FreewayBaseAgent):
     def __init__(self, **kwargs):
-        super().__init__(variable_range=variable_range, **kwargs)
+        super().__init__(variable_range=variable_range, factors=freeway_factors, **kwargs)
 
     def add_in_state_factor(self):
         self.in_state_factor = [
             self.create_in_state_factor(
                 [variable_mapping[f'player_y'], variable_mapping['player_lane']],
-                PlayerLaneFactor(train=False),
+                self.factors.PlayerLaneFactor(train=False),
             ),
             # self.create_in_state_factor(
             #     [variable_mapping[f'player_y']],
@@ -71,21 +72,21 @@ class FreewayDecomposedAgent(FreewayBaseAgent):
             # ),
             self.create_in_state_factor(
                 [variable_mapping["player_y"]],
-                YRewardFactor(train=False)
+                self.factors.YRewardFactor(train=False)
             )
         ]
         for car in range(1, MAX_LANE+1):
             self.in_state_factor.append(
                 self.create_in_state_factor(
                     [variable_mapping[f'car{car}_x'], variable_mapping[f'car{car}_inline']],
-                    CarInlineFactor(car, train=False),
+                    self.factors.CarInlineFactor(car, train=False),
                 )
             )
         self.in_state_factor.append(
             self.create_in_state_factor(
                 [variable_mapping[f'car{car}_inline'] for car in range(1, MAX_LANE+1)] 
                 + [variable_mapping['player_lane'], variable_mapping['player_collide']],
-                PlayerCollisionFactor(train=False),
+                self.factors.PlayerCollisionFactor(train=False),
             )
         )
 
@@ -95,7 +96,7 @@ class FreewayDecomposedAgent(FreewayBaseAgent):
                 [variable_mapping['player_y'], variable_mapping['player_collide']],
                 [0], # TODO: CHECK LATER
                 [variable_mapping['player_y']],
-                ChickenMovementFactor(train=False),
+                self.factors.ChickenMovementFactor(train=False),
             )
         ]
         for car in range(1, MAX_LANE+1):
@@ -104,6 +105,6 @@ class FreewayDecomposedAgent(FreewayBaseAgent):
                     [variable_mapping[f'car{car}_x']],
                     [],
                     [variable_mapping[f'car{car}_x']],
-                    CarMovementFactor(car, train=False),
+                    self.factors.CarMovementFactor(car, train=False),
                 )
             )
