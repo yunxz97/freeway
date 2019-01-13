@@ -66,6 +66,9 @@ class Worker:
         self.copy_to_local_op = tf_utils.update_target_graph(global_name, worker_name)
         self.summary_writer = tf.summary.FileWriter("{}/train_{}".format(logdir, worker_name))
 
+    def _copy_to_local(self):
+        self.sess.run(self.copy_to_local_op)
+
     def work(self):
         self.summary_writer.add_graph(self.sess.graph)
         n_episodes = 1000
@@ -80,7 +83,7 @@ class Worker:
 
         while episode_i < n_episodes:
             # 1) sync from global model to local model
-            # self._copy_to_local()
+            self._copy_to_local()
 
             # 2) collect t_max steps (if terminated then i++)
             steps = []
@@ -111,15 +114,15 @@ class Worker:
                 # print(episode_len)
 
                 episode_len = episode_len + 1
-                # steps.append(
-                #     Step(
-                #         cur_step=cur_state,
-                #         action=action,
-                #         next_step=next_state,
-                #         reward=reward,
-                #         done=done
-                #     )
-                # )
+                steps.append(
+                    Step(
+                        cur_step=cur_state,
+                        action=action,
+                        next_step=next_state,
+                        reward=reward,
+                        done=done
+                    )
+                )
                 if done or episode_len >= MAX_STEPS_PER_EPISODE:
                     self.history.append(episode_len)
                     summary = tf.Summary()
@@ -146,64 +149,64 @@ class Worker:
                 cur_state = next_state
 
             # 3) convert the t_max steps into a batch
-            # if steps[-1].done:
-            #     R = 0
-            # else:
-            #     R = self.local_model.predict_value(cur_state, self.sess)
-            # R_batch = np.zeros(len(steps))
-            # advantage_batch = np.zeros(len(steps))
-            # target_v_batch = np.zeros(len(steps))
-            # for i in reversed(range(len(steps))):
-            #     step = steps[i]
-            #     R = step.reward + self.gamma * R
-            #     R_batch[i] = R
-            # cur_state_batch = [step.cur_step for step in steps]
-            # pred_v_batch = self.local_model.predict_value(cur_state_batch, self.sess)
-            # action_batch = [step.action for step in steps]
-            # advantage_batch = [R_batch[i] - pred_v_batch[i] for i in range(len(steps))]
-            # # 4) compute the gradient and update the global model
-            # action_batch = np.reshape(action_batch, [-1])
-            # advantage_batch = np.reshape(advantage_batch, [-1])
-            # R_batch = np.reshape(R_batch, [-1])
-            # feed_dict = {
-            #     self.local_model.input_s: cur_state_batch,
-            #     self.local_model.input_a: action_batch,
-            #     self.local_model.advantage: advantage_batch,
-            #     self.local_model.target_v: R_batch,
-            # }
+            if steps[-1].done:
+                R = 0
+            else:
+                R = self.local_model.predict_value(cur_state, self.sess)
+            R_batch = np.zeros(len(steps))
+            advantage_batch = np.zeros(len(steps))
+            target_v_batch = np.zeros(len(steps))
+            for i in reversed(range(len(steps))):
+                step = steps[i]
+                R = step.reward + self.gamma * R
+                R_batch[i] = R
+            cur_state_batch = [step.cur_step for step in steps]
+            pred_v_batch = self.local_model.predict_value(cur_state_batch, self.sess)
+            action_batch = [step.action for step in steps]
+            advantage_batch = [R_batch[i] - pred_v_batch[i] for i in range(len(steps))]
+            # 4) compute the gradient and update the global model
+            action_batch = np.reshape(action_batch, [-1])
+            advantage_batch = np.reshape(advantage_batch, [-1])
+            R_batch = np.reshape(R_batch, [-1])
+            feed_dict = {
+                self.local_model.input_s: cur_state_batch,
+                self.local_model.input_a: action_batch,
+                self.local_model.advantage: advantage_batch,
+                self.local_model.target_v: R_batch,
+            }
 
-            # if type(self.local_model.agent.infer_net) == InferNetPipeLine:
-            #     feed_dict[self.local_model.agent.infer_net.simulate_steps] = self.local_model.SIM_STEPS
-            #     feed_dict[self.local_model.agent.infer_net.max_steps] = self.local_model.SIM_STEPS + (self.local_model.BP_STEPS - 1) * 2
+            if type(self.local_model.agent.infer_net) == InferNetPipeLine:
+                feed_dict[self.local_model.agent.infer_net.simulate_steps] = self.local_model.SIM_STEPS
+                feed_dict[self.local_model.agent.infer_net.max_steps] = self.local_model.SIM_STEPS + (self.local_model.BP_STEPS - 1) * 2
 
-            # v_l, p_l, e_l, loss, _, _, v_n = self.sess.run(
-            #     [
-            #         self.local_model.value_loss,
-            #         self.local_model.policy_loss,
-            #         self.local_model.entropy_loss,
-            #         self.local_model.loss,
-            #         self.local_model.gradients,
-            #         self.local_model.apply_gradients,
-            #         self.local_model.var_norms
-            #     ],
-            #     feed_dict,
-            # )
+            v_l, p_l, e_l, loss, _, _, v_n = self.sess.run(
+                [
+                    self.local_model.value_loss,
+                    self.local_model.policy_loss,
+                    self.local_model.entropy_loss,
+                    self.local_model.loss,
+                    self.local_model.gradients,
+                    self.local_model.apply_gradients,
+                    self.local_model.var_norms
+                ],
+                feed_dict,
+            )
 
-            # mean_reward = np.mean([step.reward for step in steps])
-            # mean_value = np.mean(R_batch)
+            mean_reward = np.mean([step.reward for step in steps])
+            mean_value = np.mean(R_batch)
 
-            # if count % 1 == 0:
-            #     summary = tf.Summary()
-            #     summary.value.add(tag='Perf/Reward', simple_value=float(mean_reward))
-            #     summary.value.add(tag='Perf/Value', simple_value=float(mean_value))
-            #     summary.value.add(tag='Losses/Value Loss', simple_value=float(v_l))
-            #     summary.value.add(tag='Losses/Policy Loss', simple_value=float(p_l))
-            #     summary.value.add(tag='Losses/Entropy', simple_value=float(e_l))
-            #     summary.value.add(tag='Losses/Var Norm', simple_value=float(v_n))
-            #     self.summary_writer.add_summary(summary, count)
-            # # print(summary)
-            # print(count)
-            # count += 1
+            if count % 1 == 0:
+                summary = tf.Summary()
+                summary.value.add(tag='Perf/Reward', simple_value=float(mean_reward))
+                summary.value.add(tag='Perf/Value', simple_value=float(mean_value))
+                summary.value.add(tag='Losses/Value Loss', simple_value=float(v_l))
+                summary.value.add(tag='Losses/Policy Loss', simple_value=float(p_l))
+                summary.value.add(tag='Losses/Entropy', simple_value=float(e_l))
+                summary.value.add(tag='Losses/Var Norm', simple_value=float(v_n))
+                self.summary_writer.add_summary(summary, count)
+            # print(summary)
+            print(count)
+            count += 1
 
 
 all_state_dim = list(variable_range.values())
