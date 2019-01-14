@@ -183,11 +183,12 @@ class ACNetFreeway(object):
             feed_dict[self.agent.infer_net.max_steps] = self.SIM_STEPS + (self.BP_STEPS - 1) * 2
 
         # policy = sess.run(self.policy, feed_dict)
-        [policy, final_state] = sess.run([self.policy, self.final_state], feed_dict)
+        [policy, final_state, objv] = sess.run([self.policy, self.final_state, self.agent.infer_net.objv], feed_dict)
         # print(np.where(state[0][370:530]))
         print(f"prediction: {[np.argmax(s) for s in final_state]}")
         print("normalized risk: {:.2%}".format(final_state[21][0][1] / sum(final_state[21][0])))
-        print(final_state[0])
+        print(f"objv: {objv}")
+        # print(final_state[0])
         print(f"action: {np.argmax(policy[0])}\n==============================================")
 
         # policy = tf_utils.run_with_timeline_recorded(sess, self.policy, feed_dict)
