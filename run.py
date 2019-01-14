@@ -8,6 +8,8 @@ import ac_net_freeway as ac_net
 import gym
 import tf_utils
 
+from lib.basic_infer_unit import InferNetPipeLine, InferNetRNN
+
 import sys
 import os
 
