@@ -30,7 +30,7 @@ elif MODEL_TYPE == "Decomposed":
 else:
     raise "Model Type Not Implemented"
 
-MAX_STEPS_PER_EPISODE = 1000
+MAX_STEPS_PER_EPISODE = 10000
 Step = namedtuple('Step', 'cur_step action next_step reward done')
 
 preprocessor_for_ddn = Processor()
@@ -246,7 +246,7 @@ sess = tf.Session(config=config)
 # sess = tf_debug.TensorBoardDebugWrapperSession(sess, "Yuyangs-MacBook-Pro.local:6064")
 
 worker = Worker(
-    env=gym.make("FreewayDeterministic-v4"),
+    env=gym.make("Freeway-v0"),
     state_size=STATE_SIZE, action_size=ACTION_SIZE,
     lr=LEARNING_RATE,
     gamma=GAMMA, t_max=T_MAX, sess=sess,
