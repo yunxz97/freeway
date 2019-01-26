@@ -163,7 +163,7 @@ class Worker(object):
             reward_batch_consolidated = []
 
             # 3) convert the t_max steps into a batch
-            for idx,steps in enumerate(steps_batch) :
+            for idx, steps in enumerate(steps_batch) :
                 if not steps :
                     continue
                 if steps[-1].done:
@@ -224,15 +224,21 @@ class Worker(object):
                 feed_dict[self.local_model.agent.infer_net.simulate_steps] = self.local_model.SIM_STEPS
                 feed_dict[self.local_model.agent.infer_net.max_steps] = self.local_model.SIM_STEPS + (self.local_model.BP_STEPS - 1) * 2
 
-            v_l, p_l, e_l, rl_loss, sl_loss, _, _, _, _, v_n_rl, v_n_sl, v_n_total, rew_loss, trans_loss, sn, nsn, an = self.sess.run(
+            # v_l, p_l, e_l, rl_loss, sl_loss, \
+            # _, _, _, _, \
+            # v_n_rl, v_n_sl, v_n_total, \
+            # rew_loss, trans_loss, sn, nsn, an = self.sess.run(
+            v_l, p_l, e_l, rl_loss, sl_loss, \
+            v_n_rl, v_n_sl, v_n_total, \
+            rew_loss, trans_loss, sn, nsn, an = self.sess.run(
                 [
                     self.local_model.value_loss, self.local_model.policy_loss,
                     self.local_model.entropy_loss, self.local_model.rl_loss,
                     self.local_model.supervised_loss,
-                    self.local_model.gradients_rl,
-                    self.local_model.apply_gradients_rl,
-                    self.local_model.gradients_sl,
-                    self.local_model.apply_gradients_sl,
+                    # self.local_model.gradients_rl,
+                    # self.local_model.apply_gradients_rl,
+                    # self.local_model.gradients_sl,
+                    # self.local_model.apply_gradients_sl,
                     self.local_model.var_norms_rl,
                     self.local_model.var_norms_sl,
                     self.local_model.var_norms_total,
