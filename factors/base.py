@@ -6,11 +6,29 @@ from utils import to_log_probability
 
 
 class FactorWrapper(Factors):
-    def build(self, transitionMat, train, name='', max_clip_value=1):
+    def build(self, transitionMat, train, SL, RL, name='', max_clip_value=1):
         transitionMat = to_log_probability(transitionMat, SMALL_NON_ZERO, max_clip_value)
         potential = tf.constant(transitionMat, dtype=tf.float32)
         self.transMatrix = transitionMat
-        self.potential = tf.get_variable(self.__class__.__name__+str(name) , initializer=potential, trainable=train)
+        if SL:
+            with tf.variable_scope("sl_params"):
+                self.sl_params = tf.get_variable('sl' + self.__class__.__name__ + str(name),
+                                                 initializer=potential, trainable=train)
+            if RL:
+                with tf.variable_scope("rl_params"):
+                    self.rl_params = tf.get_variable('rl' + self.__class__.__name__ + str(name),
+                                                     initializer=tf.zeros_like(self.sl_params), trainable=train)
+                self.potential = self.rl_params + self.sl_params
+            else:
+                self.potential = self.sl_params
+        elif RL:
+            with tf.variable_scope("rl_params"):
+                self.potential = tf.get_variable('rl' + self.__class__.__name__ + str(name),
+                                                 initializer=potential, trainable=train)
+        else:
+            self.potential = tf.get_variable(self.__class__.__name__ + str(name),
+                                             initializer=potential, trainable=False)
+        # self.potential = tf.get_variable(self.__class__.__name__+str(name), initializer=potential, trainable=train)
         self.beliefs = self.potential
 
 
@@ -18,20 +36,20 @@ class CarMovementFactor(FactorWrapper):
     def __init__(self, car, dist=SCREEN_WIDTH, train=TRAIN_FACTOR_WEIGHTS):
         super().__init__()
         assert type(car) is int and 1 <= car <= 10
-        speed = [1, 1, 2, 2, 4, -4, -2, -2, -1, -1][car-1]
+        speed = [1, 1, 2, 2, 4, -4, -2, -2, -1, -1][car - 1]
 
         transition_mtx = np.zeros([dist, dist])
         mtx_range = np.arange(dist)
         if car in [1, 10]:
-            transition_mtx[mtx_range, (mtx_range + speed) % dist] = 4/5
-            transition_mtx[mtx_range, mtx_range] = 1/5
+            transition_mtx[mtx_range, (mtx_range + speed) % dist] = 4 / 5
+            transition_mtx[mtx_range, mtx_range] = 1 / 5
         elif car in [3, 8]:
-            transition_mtx[mtx_range, (mtx_range + speed) % dist] = 2/3
-            transition_mtx[mtx_range, mtx_range] = 1/3
+            transition_mtx[mtx_range, (mtx_range + speed) % dist] = 2 / 3
+            transition_mtx[mtx_range, mtx_range] = 1 / 3
         else:
-            transition_mtx[mtx_range, (mtx_range+speed) % dist] = 1
+            transition_mtx[mtx_range, (mtx_range + speed) % dist] = 1
 
-        self.build(transition_mtx, train, name=car, max_clip_value=1)
+        self.build(transition_mtx, train, SL=True, RL=True, name=car, max_clip_value=1)
 
 
 class ChickenMovementFactor(FactorWrapper):
@@ -42,21 +60,21 @@ class ChickenMovementFactor(FactorWrapper):
 
         transition_mtx[mtx_range, 0, 0, mtx_range] = 1
 
-        transition_mtx[mtx_range, 0, 1, np.clip(mtx_range-PLAYER_MOVE_SPEED, 0, dist-1)] = 1
+        transition_mtx[mtx_range, 0, 1, np.clip(mtx_range - PLAYER_MOVE_SPEED, 0, dist - 1)] = 1
 
-        transition_mtx[mtx_range, 0, 2, np.clip(mtx_range+PLAYER_MOVE_SPEED, 0, dist-1)] = 1
+        transition_mtx[mtx_range, 0, 2, np.clip(mtx_range + PLAYER_MOVE_SPEED, 0, dist - 1)] = 1
 
-        transition_mtx[mtx_range, 1, 0, np.clip(mtx_range+HIT_IMPACT, 0, dist-1)] = 1
+        transition_mtx[mtx_range, 1, 0, np.clip(mtx_range + HIT_IMPACT, 0, dist - 1)] = 1
 
-        transition_mtx[mtx_range, 1, 1, np.clip(mtx_range-PLAYER_MOVE_SPEED+HIT_IMPACT, 0, dist-1)] = 1
+        transition_mtx[mtx_range, 1, 1, np.clip(mtx_range - PLAYER_MOVE_SPEED + HIT_IMPACT, 0, dist - 1)] = 1
 
-        transition_mtx[mtx_range, 1, 2, np.clip(mtx_range+PLAYER_MOVE_SPEED+HIT_IMPACT, 0, dist-1)] = 1
+        transition_mtx[mtx_range, 1, 2, np.clip(mtx_range + PLAYER_MOVE_SPEED + HIT_IMPACT, 0, dist - 1)] = 1
 
         # print(transition_mtx[191, 0, 0])
         # print(transition_mtx[191, 0, 1])
         # print(transition_mtx[191, 0, 2])
 
-        self.build(transition_mtx, train, max_clip_value=1)
+        self.build(transition_mtx, train, SL=True, RL=True, max_clip_value=1)
 
 
 class CarHitFactor(FactorWrapper):
@@ -77,14 +95,14 @@ class CarHitFactor(FactorWrapper):
         chicken_x = slice(39, 55)
 
         car_slice = [car1_y, car2_y, car3_y, car4_y, car5_y,
-                     car6_y, car7_y, car8_y, car9_y, car10_y][car-1]
+                     car6_y, car7_y, car8_y, car9_y, car10_y][car - 1]
 
         transition_mtx = np.zeros([210, 160, 2])
         transition_mtx[car_slice, chicken_x, 1] = 1
         transition_mtx[:, :, 0] = 1
         transition_mtx[car_slice, chicken_x, 0] = 0
 
-        self.build(transition_mtx, train, name=car, max_clip_value=1)
+        self.build(transition_mtx, train, SL=True, RL=True, name=car, max_clip_value=1)
 
 
 class HitFactor(FactorWrapper):
@@ -97,26 +115,24 @@ class HitFactor(FactorWrapper):
         transition_mtx[:, :, :, :, :, :, :, :, :, :, 0] = 0
         transition_mtx[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] = 1
 
-        self.build(transition_mtx, train, max_clip_value=1)
+        self.build(transition_mtx, train, SL=False, RL=False, max_clip_value=1)
 
 
-class DestinationRewardFactor(FactorWrapper):
-    def __init__(self, dist=SCREEN_HEIGHT, train=TRAIN_FACTOR_WEIGHTS):
-        super().__init__()
-
-        transition_mtx = np.ones(dist)
-
-        transition_mtx[:23] = 10000
-
-        self.build(transition_mtx, train, max_clip_value=10000)
+# class DestinationRewardFactor(FactorWrapper):
+#     def __init__(self, dist=SCREEN_HEIGHT, train=TRAIN_FACTOR_WEIGHTS):
+#         super().__init__()
+#
+#         transition_mtx = np.ones(dist)
+#
+#         transition_mtx[:23] = 10000
+#
+#         self.build(transition_mtx, train, SL=False, RL=True, max_clip_value=10000)
 
 
 class YRewardFactor(FactorWrapper):
     def __init__(self, dist=SCREEN_HEIGHT, train=TRAIN_FACTOR_WEIGHTS):
         super().__init__()
 
-        transition_mtx = np.arange(1, .99, -.01/dist)[:dist]
+        transition_mtx = np.arange(1, .99, -.01 / dist)[:dist]
         # print(transition_mtx)
-        self.build(transition_mtx, train, max_clip_value=dist)
-
-
+        self.build(transition_mtx, train, SL=True, RL=True, max_clip_value=dist)

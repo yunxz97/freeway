@@ -1,7 +1,6 @@
 """Utility functions for tensorflow"""
-import numpy as np
 import tensorflow as tf
-from tensorflow.python.client import timeline
+import numpy as np
 
 
 def max_pool(x, k_sz=[2, 2]):
@@ -86,20 +85,3 @@ def normalized_columns_initializer(std=1.0):
       out *= std / np.sqrt(np.square(out).sum(axis=0, keepdims=True))
       return tf.constant(out)
   return _initializer
-
-
-def run_with_timeline_recorded(sess, op_list, feed_dict):
-  run_metadata = tf.RunMetadata()
-
-  result = sess.run(
-      op_list,
-      feed_dict,
-      run_metadata = run_metadata
-  )
-
-  fetched_timeline = timeline.Timeline(run_metadata.step_stats)
-  chrome_trace = fetched_timeline.generate_chrome_trace_format()
-  with open('timeline_01.json', 'w') as f:
-      f.write(chrome_trace)
-    
-  return result

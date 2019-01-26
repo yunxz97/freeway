@@ -7,8 +7,8 @@ class DDNDecomposedPreprocessor(DDNBasePreprocessor):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    def obs_to_state(self, im):
-        unprocessed = self.extract_state(im)
+    def get_state(self, im):
+        unprocessed = self.get_obs(im)
         player_y = unprocessed[0]
         car_x = unprocessed[1:11]
         car_inline = ((INLINE_LEFT <= car_x) & (car_x <= INLINE_RIGHT)).astype(np.int)

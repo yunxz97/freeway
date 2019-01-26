@@ -1,4 +1,4 @@
-from constants import SCREEN_WIDTH, SCREEN_HEIGHT, SMALL_NON_ZERO, SMALL_LOG_NON_ZERO
+from constants import SCREEN_WIDTH, SCREEN_HEIGHT
 import numpy as np
 from scipy import signal
 from utils import to_log_probability
@@ -28,6 +28,7 @@ from utils import to_log_probability
     "hit": 21
 """
 
+
 class DDNBasePreprocessor:
     def __init__(self, im=None):
         self.im = im
@@ -46,6 +47,7 @@ class DDNBasePreprocessor:
             warnings.simplefilter("ignore")
             # chicken position
             sub_im = im[:, 40:60]
+
             mask_r = (sub_im[:, :, 0] > 240)
             mask_g = (sub_im[:, :, 1] > 240)
             mask_b = (sub_im[:, :, 2] > 80) & (sub_im[:, :, 2] < 90)
@@ -175,7 +177,7 @@ class DDNBasePreprocessor:
 
         return np.array([*hit, hit_combined], dtype=int)
 
-    def extract_state(self, im):
+    def get_obs(self, im):
         self.extract_positions(im)
         self.hit = self.extract_hit()
         speed = self.positions_tp1 - self.positions_t
@@ -183,8 +185,8 @@ class DDNBasePreprocessor:
         speed[missing_val_mask] = 0
         return np.concatenate([self.positions_tp1, self.hit])
 
-    def obs_to_state(self, observation):
-        extracted = self.extract_state(observation)
+    def get_state(self, observation):
+        self.get_obs(observation)
         state = np.zeros(SCREEN_HEIGHT + 10*SCREEN_WIDTH + 2*11)
         state[self.positions_tp1[0]] = 1
         print(f"state: {np.concatenate([self.positions_tp1, self.hit]).tolist()}")
@@ -195,6 +197,19 @@ class DDNBasePreprocessor:
         hit_indices = SCREEN_HEIGHT + SCREEN_WIDTH * 10 + np.arange(11) * 2 + self.hit
         state[hit_indices] = 1
 
-        # print(np.where(state[370:530])
-        return to_log_probability(state, SMALL_NON_ZERO, 1)
+        return to_log_probability(state)
 
+    @staticmethod
+    def obs_to_state(obs):
+        positions = obs[:11]
+        hit = obs[11:]
+        state = np.zeros(SCREEN_HEIGHT + 10 * SCREEN_WIDTH + 2 * 11)
+        state[positions[0]] = 1
+
+        car_indices = SCREEN_HEIGHT + np.arange(10) * SCREEN_WIDTH + positions[1:]
+        state[car_indices] = 1
+
+        hit_indices = SCREEN_HEIGHT + SCREEN_WIDTH * 10 + np.arange(11) * 2 + hit
+        state[hit_indices] = 1
+
+        return to_log_probability(state)

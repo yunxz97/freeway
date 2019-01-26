@@ -214,7 +214,7 @@ class Worker(threading.Thread):
                 # get action for the current states_stack and go one step in environment
                 # action, policy = self.get_action(states_stack)
 
-                ddn_state = preprocessor_for_ddn.obs_to_state(observe)
+                ddn_state = preprocessor_for_ddn.get_state(observe)
                 ddn_input = np.reshape(ddn_state, (-1, ddn_state.shape[0]))
                 # ddn_action, ddn_policy = self.get_ddn_action(ddn_input)
                 action, policy = self.get_ddn_action(ddn_input)
