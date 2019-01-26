@@ -61,13 +61,14 @@ class ProcEnv :
                     self.w_conn.send(DONE)
                 elif msg == STEP:
                     obs, rew, done, info = self._env.step(data)
-
-                    for shm, ob in zip(self.shm, np.append(obs, [rew, done]).astype(np.int32)):
+                    # print(obs, rew, done)
+                    for shm, ob in zip(self.shm, [obs] + [rew, done]):
                         np.copyto(dst=shm[self.idx], src=ob)
+                    # print('shm', self.shm)
                     self.w_conn.send(DONE)
                 elif msg == RESET:
                     obs = self._env.reset()
-                    for shm, ob in zip(self.shm, np.append(obs, [0, 0]).astype(np.int32)):
+                    for shm, ob in zip(self.shm, [obs] + [0, 0]):
                         np.copyto(dst=shm[self.idx], src=ob)
                     self.w_conn.send(DONE)
                 elif msg == STOP:
@@ -85,10 +86,13 @@ class ProcEnv :
 class MultiEnv:
     def __init__(self, env, num_envs=1):
         self.num_envs = num_envs
-        self.shm = [make_shared(num_envs, Space(shape=(len(s),),dtype=np.float32, name='obs_{}'.format(idx))) for idx, s in enumerate(env.obs_spec())]
-        self.shm.append(make_shared(num_envs, Space((1,), name="reward")))
+        self.shm = [make_shared(
+            num_envs, Space(shape=(len(s),), name='obs_{}'.format(idx))) for idx, s in enumerate(env.obs_spec())]
+        self.shm.append(make_shared(num_envs, Space((1,), name="reward", dtype=np.float32)))
         self.shm.append(make_shared(num_envs, Space((1,), name="done")))
-        self.envs = [ProcEnv(environment, id, self.shm) for id, environment in enumerate([env] + [deepcopy(env) for _ in range(self.num_envs-1)])]
+        self.envs = [ProcEnv(environment, id, self.shm)
+                     for id, environment in enumerate([env] + [deepcopy(env)
+                                                               for _ in range(self.num_envs-1)])]
 
         for environment in self.envs :
             environment.start()
@@ -101,7 +105,7 @@ class MultiEnv:
         self.wait()
         # print(x)
         # obs, reward, done = zip(*x)
-        obs = list(map(lambda x  : list(x), zip(*self.shm[:-2])))
+        obs = list(map(lambda x: list(x), zip(*self.shm[:-2])))
         reward = np.squeeze(self.shm[-2], axis=-1)
         done = np.squeeze(self.shm[-1], axis=-1)
         return obs, reward, done
