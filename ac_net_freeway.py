@@ -3,7 +3,7 @@ import numpy as np
 import tensorflow as tf
 import tensorflow.contrib.layers as tcl
 
-from agents.base import FreewayBaseAgent
+from agents.learnable import FreewayLearnableAgent
 import tf_utils
 from lib.BasicInferUnit import InferNetPipeLine, InferNetRNN
 
@@ -174,7 +174,7 @@ class ACNetFreeway(object):
         target_v = tf.placeholder(tf.float32, [None])
 
         with tf.variable_scope(name):
-            self.agent = FreewayBaseAgent(simulate_steps=self.SIM_STEPS,
+            self.agent = FreewayLearnableAgent(simulate_steps=self.SIM_STEPS,
                                           max_bp_steps=self.BP_STEPS,
                                           mult_fac=self.MULT_FAC,
                                           discount_factor=.99,

@@ -10,59 +10,61 @@ import numpy as np
 import ac_net_freeway as ac_net
 import worker_freeway as worker
 
+import constants
+
 
 PARSER = argparse.ArgumentParser(description=None)
 PARSER.add_argument(
-    '-d', '--device', default='cpu', type=str, help='choose device: cpu/gpu')
+    '-d', '--device', default=constants.DEVICE, type=str, help='choose device: cpu/gpu')
 PARSER.add_argument(
-    '-e', '--episodes', default=50000, type=int, help='number of episodes')
+    '-e', '--episodes', default=constants.EPISODES, type=int, help='number of episodes')
 PARSER.add_argument(
-    '-w', '--workers', default=1, type=int, help='number of workers')
+    '-w', '--workers', default=constants.WORKERS, type=int, help='number of workers')
 PARSER.add_argument(
-    '-l', '--log_dir', default='IPPC_logs', type=str, help='log directory')
-PARSER.add_argument('-t', '--T_MAX', default=5, type=int, help='Buffer Size')
+    '-l', '--log_dir', default=constants.LOG_DIR, type=str, help='log directory')
+PARSER.add_argument('-t', '--T_MAX', default=constants.T_MAX, type=int, help='Buffer Size')
 PARSER.add_argument(
     '-m',
     '--MULT_FAC',
-    default=3,
+    default=constants.MULTI_FAC,
     type=float,
     help='Reward multiplication factor')
 PARSER.add_argument(
     '-rl_lr',
     '--RL_LEARN_RATE',
-    default=0.01,
+    default=constants.RL_LR,
     type=float,
     help='Learning rate for reinforcement learning')
 PARSER.add_argument(
     '-sl_lr',
     '--SL_LEARN_RATE',
-    default=0.01,
+    default=constants.SL_LR,
     type=float,
     help='Learning rate for supervised learning')
 PARSER.add_argument(
-    '-s', '--SIM_STEPS', default=5, type=int, help='Simulation steps')
+    '-s', '--SIM_STEPS', default=constants.SIM_STEPS, type=int, help='Simulation steps')
 PARSER.add_argument(
     '-b',
     '--BP_STEPS',
-    default=10,
+    default=constants.BP_STEPS,
     type=int,
     help='Belief Propagation iterations')
 PARSER.add_argument(
-    '-beta', '--BETA', default=0.01, type=float, help='Entropy Loss Fraction')
+    '-beta', '--BETA', default=constants.BETA, type=float, help='Entropy Loss Fraction')
 PARSER.add_argument(
-    '-gamma', '--GAMMA', default=0.99, type=float, help='Discount Factor')
+    '-gamma', '--GAMMA', default=constants.GAMMA, type=float, help='Discount Factor')
 PARSER.add_argument(
     '-uid',
     '--UNIQUE_ID',
-    default=str(np.random.randn()),
+    default=constants.UNIQUE_ID,
     type=float,
     help='ID to differentiate runs')
 PARSER.add_argument(
-    '-lm', '--LOAD_MODEL', default=False, type=bool, help='To load new model')
+    '-lm', '--LOAD_MODEL', default=constants.LOAD_MODEL, type=bool, help='To load new model')
 PARSER.add_argument(
     '-seq',
     '--Sequential',
-    default=True,
+    default=constants.SEQUENTIAL,
     type=bool,
     help='To use sequential BP')
 

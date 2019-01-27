@@ -7,16 +7,17 @@ import ac_net_freeway as ac_net
 import tf_utils
 import MultiEnv
 from copy import deepcopy
+import constants
 
 MAX_STEPS = 10000
 
 Step = namedtuple('Step', 'cur_step action next_step reward done')
 
 ARGS = {}
-SIM_STEPS = 14
-BP_STEPS = 100
-MULT_FAC = 3
-NUM_MULTI_ENV = 3
+SIM_STEPS = constants.SIM_STEPS
+BP_STEPS = constants.BP_STEPS
+MULT_FAC = constants.MULTI_FAC
+NUM_MULTI_ENV = constants.NUM_MULTI_ENV
 
 
 class Worker(object):
@@ -77,7 +78,7 @@ class Worker(object):
     def work(self, n_episodes, saver):
         episode_i = 0
         episode_len = [0 for _ in range(self.num_env)]
-        cur_state,_,_ = deepcopy(self.env.reset())
+        cur_state, _, _ = deepcopy(self.env.reset())
         count = 1
         cum_reward = [0 for _ in range(self.num_env)]
         while episode_i < n_episodes:
@@ -113,7 +114,7 @@ class Worker(object):
                     done_env[step_env_map[agent_id]] = done[agent_id]
                     info_batch[step_env_map[agent_id]] = info[agent_id]
 
-                    cum_reward[agent_id] += np.power(self.gamma,episode_len[agent_id]) * reward_for_cumulative
+                    cum_reward[agent_id] += np.power(self.gamma, episode_len[agent_id]) * reward_for_cumulative
                     episode_len[agent_id] = episode_len[agent_id] + 1
 
                     steps_batch[step_env_map[agent_id]].append(Step(cur_step=cur_state[agent_id],
@@ -121,7 +122,7 @@ class Worker(object):
                                                               next_step=next_state[agent_id],
                                                               reward=reward[agent_id],
                                                               done=done[agent_id]))
-                    if episode_len[agent_id] >= MAX_STEPS :
+                    if episode_len[agent_id] >= MAX_STEPS:
                         is_reset_needed = True
 
                 if is_reset_needed:
@@ -220,6 +221,25 @@ class Worker(object):
                 self.local_model.agent.init_state_pl: cur_state_batch_consolidated,
                 self.local_model.input_r: reward_batch_consolidated
             }
+            # print([
+            #     len(feed_dict[self.local_model.input_s]),
+            #     len(feed_dict[self.local_model.input_sprime]),
+            #     len(feed_dict[self.local_model.input_a]),
+            #     len(feed_dict[self.local_model.advantage]),
+            #     len(feed_dict[self.local_model.target_v]),
+            #     len(feed_dict[self.local_model.agent.init_state_pl]),
+            #     len(feed_dict[self.local_model.input_r]),
+            # ])
+            # print([
+                # feed_dict[self.local_model.input_s][0].shape,
+                # feed_dict[self.local_model.input_sprime][0].shape,
+                # feed_dict[self.local_model.input_a][0].shape,
+                # feed_dict[self.local_model.advantage],
+                # feed_dict[self.local_model.target_v],
+                # feed_dict[self.local_model.agent.init_state_pl][0].shape,
+                # feed_dict[self.local_model.input_r],
+            # ])
+
             if type(self.local_model.agent.infer_net) == InferNetPipeLine:
                 feed_dict[self.local_model.agent.infer_net.simulate_steps] = self.local_model.SIM_STEPS
                 feed_dict[self.local_model.agent.infer_net.max_steps] = self.local_model.SIM_STEPS + (self.local_model.BP_STEPS - 1) * 2

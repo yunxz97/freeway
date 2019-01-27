@@ -5,6 +5,7 @@ from constants import TRAIN_FACTOR_WEIGHTS, SCREEN_WIDTH, SCREEN_HEIGHT, HIT_IMP
 
 from factors.base import FactorWrapper, YRewardFactor, HitFactor, DestinationRewardFactor
 
+
 class CarMovementFactor(FactorWrapper):
     def __init__(self, car, dist=SCREEN_WIDTH, train=TRAIN_FACTOR_WEIGHTS):
         super().__init__()
@@ -15,7 +16,7 @@ class CarMovementFactor(FactorWrapper):
         for speed in possible_speeds:
             transition_mtx[mtx_range, (mtx_range + speed) % dist] = 1/float(len(possible_speeds))
 
-        self.build(transition_mtx, train, name=car, max_clip_value=1)
+        self.build(transition_mtx, train, SL=True, RL=True, name=car, max_clip_value=1)
 
 
 class ChickenMovementFactor(FactorWrapper):
@@ -41,7 +42,7 @@ class ChickenMovementFactor(FactorWrapper):
                 transition_mtx[mtx_range, 1, 1, np.clip(mtx_range-p_speed+p_hit_impact, 0, dist-1)] = proba_hit
                 transition_mtx[mtx_range, 1, 2, np.clip(mtx_range+p_speed+p_hit_impact, 0, dist-1)] = proba_hit
 
-        self.build(transition_mtx, train, max_clip_value=1)
+        self.build(transition_mtx, train, SL=True, RL=True, max_clip_value=1)
 
 
 class CarHitFactor(FactorWrapper):
@@ -49,7 +50,7 @@ class CarHitFactor(FactorWrapper):
         super().__init__()
         assert type(car) is int and 1 <= car <= 10
 
-        car_idx = [(167,187), (151,169), (135, 153), (119, 137), (104, 121), (87, 104), (71, 89), (55, 73), (39, 57), (23, 41)][car-1]
+        car_idx = [(167, 187), (151, 169), (135, 153), (119, 137), (104, 121), (87, 104), (71, 89), (55, 73), (39, 57), (23, 41)][car-1]
 
         # random perturb
         PERTURB = 20
@@ -61,4 +62,4 @@ class CarHitFactor(FactorWrapper):
         transition_mtx[:, :, 0] = 1
         transition_mtx[car_slice, chicken_x, 0] = 0
 
-        self.build(transition_mtx, train, name=car, max_clip_value=1)
+        self.build(transition_mtx, train, SL=True, RL=True, name=car, max_clip_value=1)

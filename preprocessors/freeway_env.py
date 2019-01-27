@@ -1,12 +1,12 @@
 import numpy as np
 import gym
 from preprocessors.base import DDNBasePreprocessor
-from constants import SCREEN_HEIGHT, SCREEN_WIDTH
+from constants import SCREEN_HEIGHT, SCREEN_WIDTH, ENV_MAX_STEPS, GAMMA
 
 
 class FreewayEnvironment:
-    steps, max_steps = 0, 1500
-    gamma = 0.99
+    steps, max_steps = 0, ENV_MAX_STEPS
+    gamma = GAMMA
 
     def __init__(self, args = {}, env="Freeway-v0"):
         self.max_steps = args.get("max_steps", self.max_steps)
@@ -39,6 +39,7 @@ class FreewayEnvironment:
         return
 
     def reset(self):
+        print('resetting...')
         self.steps = 0
         obs = self.env.reset()
         obs = self.extractor.get_obs(obs)
@@ -46,6 +47,8 @@ class FreewayEnvironment:
 
     def step(self, action):
         obs, r, done, info = self.env.step(action)
+        if r != 0:
+            print('Success!')
         if self.steps == self.max_steps:
             done = True
         obs = self.extractor.get_obs(obs)
