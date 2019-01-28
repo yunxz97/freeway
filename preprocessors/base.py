@@ -183,7 +183,9 @@ class DDNBasePreprocessor:
         speed = self.positions_tp1 - self.positions_t
         missing_val_mask = np.logical_or(self.positions_t == 0, self.positions_tp1 == 0)
         speed[missing_val_mask] = 0
-        return np.concatenate([self.positions_tp1, self.hit])
+        obs = np.concatenate([self.positions_tp1, self.hit])
+        # print(f"state: {np.concatenate([self.positions_tp1, self.hit]).tolist()}")
+        return obs
 
     def get_state(self, observation):
         self.get_obs(observation)

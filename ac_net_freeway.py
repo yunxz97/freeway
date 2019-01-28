@@ -6,8 +6,9 @@ import tensorflow.contrib.layers as tcl
 from agents.learnable import FreewayLearnableAgent
 import tf_utils
 from lib.BasicInferUnit import InferNetPipeLine, InferNetRNN
+from constants import TEMPERATURE
 
-Temperature = 1
+Temperature = TEMPERATURE
 LAYER_OVER_POLICY = False
 
 
