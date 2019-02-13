@@ -33,6 +33,7 @@ class ProcEnv :
 
     def step(self, act):
         self.conn.send((STEP, act))
+        # print('shm in step()', self.shm)
 
     def reset(self):
         self.conn.send((RESET, None))
@@ -56,6 +57,8 @@ class ProcEnv :
         try:
             while True:
                 msg, data = self.w_conn.recv()
+                # print(msg, data)
+                # print(self.shm)
                 if msg == START:
                     self._env.start()
                     self.w_conn.send(DONE)
@@ -64,8 +67,8 @@ class ProcEnv :
                     # print(obs, rew, done)
                     for shm, ob in zip(self.shm, [obs] + [rew, done]):
                         np.copyto(dst=shm[self.idx], src=ob)
-                    # print('shm', self.shm)
                     self.w_conn.send(DONE)
+                    # print('shm in _run()', self.shm)
                 elif msg == RESET:
                     obs = self._env.reset()
                     for shm, ob in zip(self.shm, [obs] + [0, 0]):
@@ -108,6 +111,8 @@ class MultiEnv:
         obs = list(map(lambda x: list(x), zip(*self.shm[:-2])))
         reward = np.squeeze(self.shm[-2], axis=-1)
         done = np.squeeze(self.shm[-1], axis=-1)
+        # print(obs)
+        # print('shm in _observe()', self.shm)
         return obs, reward, done
 
     def step(self, actions):
@@ -164,3 +169,49 @@ def to_ctype(_type):
     if isinstance(_type, np.dtype):
         _type = _type.type
     return types[_type]
+
+
+if __name__ == '__main__':
+    from preprocessors.freeway_env import FreewayEnvironment
+    from copy import deepcopy
+
+    class RandomAgent :
+        def __init(self):
+            return
+
+        def get_action(self):
+            return np.random.choice(3)
+
+
+    num_env = 1
+    envs = MultiEnv(FreewayEnvironment(), num_env)
+    state,_,_ = deepcopy(envs.reset())
+    print("BEFORE")
+    for idx, i in enumerate(state) :
+        print(idx,list(i))
+
+    info = envs.get_info()
+    print(":::::",info)
+    agents = [RandomAgent() for _ in range(num_env)]
+    actions = [agent.get_action() for agent in agents]
+    print(actions)
+    next_state, reward, done = deepcopy(envs.step(actions))
+    print("NEXT")
+    for idx, i in enumerate(next_state) :
+        print(idx,list(i))
+
+    print("AFTER")
+    for idx, i in enumerate(state) :
+        print(idx,list(i))
+    print(":::::",info)
+    info = envs.get_info()
+    print(":::::",info)
+
+    #
+    # for i in reward :
+    #     print(i)
+    #
+    # for i in done :
+    #     print(i)
+
+    envs.stop()

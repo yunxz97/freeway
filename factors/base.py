@@ -52,7 +52,7 @@ class CarMovementFactor(FactorWrapper):
         self.build(transition_mtx, train, SL=True, RL=True, name=car, max_clip_value=1)
 
 
-class ChickenMovementFactor(FactorWrapper):
+class ChickenMovementFactor(FactorWrapper): 
     def __init__(self, dist=SCREEN_HEIGHT, train=TRAIN_FACTOR_WEIGHTS):
         super().__init__()
         transition_mtx = np.zeros([dist, 2, 3, dist])

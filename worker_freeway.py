@@ -94,6 +94,7 @@ class Worker(object):
             for _ in range(self.t_max):
                 action = self.local_model.get_action(
                     [self.process_observation(state) for state in cur_state], self.sess)
+                print(np.argmax(action, axis=1))
                 # action = self.local_model.get_action(cur_state, self.sess)
                 next_state, reward, done = deepcopy(self.env.step(np.argmax(action, axis=1)))
 
@@ -164,132 +165,133 @@ class Worker(object):
             reward_batch_consolidated = []
 
             # 3) convert the t_max steps into a batch
-            for idx, steps in enumerate(steps_batch) :
-                if not steps :
-                    continue
-                if steps[-1].done:
-                    R = 0
-                else:
-                    R = self.local_model.predict_value(self.process_observation(cur_state[step_env_inv_map[idx]]), self.sess)
-                    # R = self.local_model.predict_value(cur_state[step_env_inv_map[idx]], self.sess)
-                R_batch = [0 for _ in range(len(steps))]
-                for i in reversed(range(len(steps))):
-                    #TODO WARNING:: Hack for shortening the horizon of IPPC NOT needed for other domains USE ONLY ELSE PART FOR OTHER ENVS
-                    # if i == len(steps) - 1 and \
-                    #         steps[-1].done and \
-                    #         steps[-1].reward !=0 and \
-                    #         info_batch[idx][0] != info_batch[idx][1]:
-                    #     #Done but not at goal position or at the horizon --> agent gone invisible
-                    #     steps_remaining = info_batch[idx][1] - info_batch[idx][0]
-                    #     reward = -1 * (1 - np.power(self.gamma, steps_remaining + 1)) / (1 - self.gamma) * MULT_FAC
-                    #     R = reward  # as done, no need to add gamma*R
-                    # else:
-                    #     step = steps[i]
-                    #     R = step.reward + self.gamma * R
-                    step = steps[i]
-                    R = step.reward + self.gamma * R
-
-                    R_batch[i] = R
-                cur_state_batch = [np.reshape(self.process_observation(step.cur_step), [-1])for step in steps]
-                next_state_batch = [np.reshape(self.process_observation(step.next_step), [-1])for step in steps]
-                # cur_state_batch = [np.reshape(step.cur_step, [-1])for step in steps]
-                # next_state_batch = [np.reshape(step.next_step, [-1])for step in steps]
-                reward_batch = [step.reward for step in steps]
-                pred_v_batch = self.local_model.predict_value(cur_state_batch, self.sess)
-                action_batch = [step.action for step in steps]
-
-                advantage_batch = list(np.reshape([R_batch[i] - pred_v_batch[i] for i in range(len(steps))], [-1]))
-                R_batch = list(np.reshape(R_batch, [-1]))
-                # 4) compute the gradient and update the global model
-                # action_batch = np.reshape(action_batch, [-1])
-                R_batch_consolidated += R_batch
-                cur_state_batch_consolidated += cur_state_batch
-                next_state_batch_consolidated += next_state_batch
-                action_batch_consolidated += action_batch
-                advantage_batch_consolidated += advantage_batch
-                reward_batch_consolidated += reward_batch
-
-            advantage_batch_consolidated = np.reshape(advantage_batch_consolidated, [-1])
-            R_batch_consolidated = np.reshape(R_batch_consolidated, [-1])
-
-            feed_dict = {
-                self.local_model.input_s: cur_state_batch_consolidated,
-                self.local_model.input_sprime: next_state_batch_consolidated,
-                self.local_model.input_a: action_batch_consolidated,
-                self.local_model.advantage: advantage_batch_consolidated,
-                self.local_model.target_v: R_batch_consolidated,
-                self.local_model.agent.init_state_pl: cur_state_batch_consolidated,
-                self.local_model.input_r: reward_batch_consolidated
-            }
-            # print([
-            #     len(feed_dict[self.local_model.input_s]),
-            #     len(feed_dict[self.local_model.input_sprime]),
-            #     len(feed_dict[self.local_model.input_a]),
-            #     len(feed_dict[self.local_model.advantage]),
-            #     len(feed_dict[self.local_model.target_v]),
-            #     len(feed_dict[self.local_model.agent.init_state_pl]),
-            #     len(feed_dict[self.local_model.input_r]),
-            # ])
-            # print([
-                # feed_dict[self.local_model.input_s][0].shape,
-                # feed_dict[self.local_model.input_sprime][0].shape,
-                # feed_dict[self.local_model.input_a][0].shape,
-                # feed_dict[self.local_model.advantage],
-                # feed_dict[self.local_model.target_v],
-                # feed_dict[self.local_model.agent.init_state_pl][0].shape,
-                # feed_dict[self.local_model.input_r],
-            # ])
-
-            if type(self.local_model.agent.infer_net) == InferNetPipeLine:
-                feed_dict[self.local_model.agent.infer_net.simulate_steps] = self.local_model.SIM_STEPS
-                feed_dict[self.local_model.agent.infer_net.max_steps] = self.local_model.SIM_STEPS + (self.local_model.BP_STEPS - 1) * 2
-
+            # for idx, steps in enumerate(steps_batch) :
+            #     if not steps :
+            #         continue
+            #     if steps[-1].done:
+            #         R = 0
+            #     else:
+            #         R = self.local_model.predict_value(self.process_observation(cur_state[step_env_inv_map[idx]]), self.sess)
+            #         # R = self.local_model.predict_value(cur_state[step_env_inv_map[idx]], self.sess)
+            #     R_batch = [0 for _ in range(len(steps))]
+            #     for i in reversed(range(len(steps))):
+            #         #TODO WARNING:: Hack for shortening the horizon of IPPC NOT needed for other domains USE ONLY ELSE PART FOR OTHER ENVS
+            #         # if i == len(steps) - 1 and \
+            #         #         steps[-1].done and \
+            #         #         steps[-1].reward !=0 and \
+            #         #         info_batch[idx][0] != info_batch[idx][1]:
+            #         #     #Done but not at goal position or at the horizon --> agent gone invisible
+            #         #     steps_remaining = info_batch[idx][1] - info_batch[idx][0]
+            #         #     reward = -1 * (1 - np.power(self.gamma, steps_remaining + 1)) / (1 - self.gamma) * MULT_FAC
+            #         #     R = reward  # as done, no need to add gamma*R
+            #         # else:
+            #         #     step = steps[i]
+            #         #     R = step.reward + self.gamma * R
+            #         step = steps[i]
+            #         R = step.reward + self.gamma * R
+            #
+            #         R_batch[i] = R
+            #     cur_state_batch = [np.reshape(self.process_observation(step.cur_step), [-1])for step in steps]
+            #     next_state_batch = [np.reshape(self.process_observation(step.next_step), [-1])for step in steps]
+            #     # cur_state_batch = [np.reshape(step.cur_step, [-1])for step in steps]
+            #     # next_state_batch = [np.reshape(step.next_step, [-1])for step in steps]
+            #     reward_batch = [step.reward for step in steps]
+            #     pred_v_batch = self.local_model.predict_value(cur_state_batch, self.sess)
+            #     action_batch = [step.action for step in steps]
+            #
+            #     advantage_batch = list(np.reshape([R_batch[i] - pred_v_batch[i] for i in range(len(steps))], [-1]))
+            #     R_batch = list(np.reshape(R_batch, [-1]))
+            #     # 4) compute the gradient and update the global model
+            #     # action_batch = np.reshape(action_batch, [-1])
+            #     R_batch_consolidated += R_batch
+            #     cur_state_batch_consolidated += cur_state_batch
+            #     next_state_batch_consolidated += next_state_batch
+            #     action_batch_consolidated += action_batch
+            #     advantage_batch_consolidated += advantage_batch
+            #     reward_batch_consolidated += reward_batch
+            #
+            # advantage_batch_consolidated = np.reshape(advantage_batch_consolidated, [-1])
+            # R_batch_consolidated = np.reshape(R_batch_consolidated, [-1])
+            #
+            # feed_dict = {
+            #     self.local_model.input_s: cur_state_batch_consolidated,
+            #     self.local_model.input_sprime: next_state_batch_consolidated,
+            #     self.local_model.input_a: action_batch_consolidated,
+            #     self.local_model.advantage: advantage_batch_consolidated,
+            #     self.local_model.target_v: R_batch_consolidated,
+            #     self.local_model.agent.init_state_pl: cur_state_batch_consolidated,
+            #     self.local_model.input_r: reward_batch_consolidated
+            # }
+            # # print([
+            # #     len(feed_dict[self.local_model.input_s]),
+            # #     len(feed_dict[self.local_model.input_sprime]),
+            # #     len(feed_dict[self.local_model.input_a]),
+            # #     len(feed_dict[self.local_model.advantage]),
+            # #     len(feed_dict[self.local_model.target_v]),
+            # #     len(feed_dict[self.local_model.agent.init_state_pl]),
+            # #     len(feed_dict[self.local_model.input_r]),
+            # # ])
+            # # print([
+            #     # feed_dict[self.local_model.input_s][0].shape,
+            #     # feed_dict[self.local_model.input_sprime][0].shape,
+            #     # feed_dict[self.local_model.input_a][0].shape,
+            #     # feed_dict[self.local_model.advantage],
+            #     # feed_dict[self.local_model.target_v],
+            #     # feed_dict[self.local_model.agent.init_state_pl][0].shape,
+            #     # feed_dict[self.local_model.input_r],
+            # # ])
+            #
+            # if type(self.local_model.agent.infer_net) == InferNetPipeLine:
+            #     feed_dict[self.local_model.agent.infer_net.simulate_steps] = self.local_model.SIM_STEPS
+            #     feed_dict[self.local_model.agent.infer_net.max_steps] = self.local_model.SIM_STEPS + (self.local_model.BP_STEPS - 1) * 2
+            #
+            # # v_l, p_l, e_l, rl_loss, sl_loss, \
+            # # _, _, _, _, \
+            # # v_n_rl, v_n_sl, v_n_total, \
+            # # rew_loss, trans_loss, sn, nsn, an = self.sess.run(
             # v_l, p_l, e_l, rl_loss, sl_loss, \
-            # _, _, _, _, \
             # v_n_rl, v_n_sl, v_n_total, \
             # rew_loss, trans_loss, sn, nsn, an = self.sess.run(
-            v_l, p_l, e_l, rl_loss, sl_loss, \
-            v_n_rl, v_n_sl, v_n_total, \
-            rew_loss, trans_loss, sn, nsn, an = self.sess.run(
-                [
-                    self.local_model.value_loss, self.local_model.policy_loss,
-                    self.local_model.entropy_loss, self.local_model.rl_loss,
-                    self.local_model.supervised_loss,
-                    # self.local_model.gradients_rl,
-                    # self.local_model.apply_gradients_rl,
-                    # self.local_model.gradients_sl,
-                    # self.local_model.apply_gradients_sl,
-                    self.local_model.var_norms_rl,
-                    self.local_model.var_norms_sl,
-                    self.local_model.var_norms_total,
-                    self.local_model.reward_loss,
-                    self.local_model.transition_loss,
-                    self.local_model.state_nodes,
-                    self.local_model.next_state_nodes,
-                    self.local_model.action_nodes
-                ], feed_dict)
-
-            mean_reward = np.mean(reward_batch_consolidated)
-            mean_value = np.mean(R_batch_consolidated)
-
-            summary = tf.Summary()
-            summary.value.add(tag='Perf/Reward', simple_value=float(mean_reward))
-            summary.value.add(tag='Perf/Value', simple_value=float(mean_value))
-            summary.value.add(tag='Losses/Value Loss', simple_value=float(v_l))
-            summary.value.add(tag='Losses/Policy Loss', simple_value=float(p_l))
-            summary.value.add(tag='Losses/Entropy', simple_value=float(e_l))
-
-            summary.value.add(tag='Losses/Supervised Loss', simple_value=float(sl_loss))
-            summary.value.add(tag='Losses/RL Loss', simple_value=float(rl_loss))
-
-            summary.value.add(tag='Losses/Var Norm RL', simple_value=float(v_n_rl))
-            summary.value.add(tag='Losses/Var Norm SL', simple_value=float(v_n_rl))
-            summary.value.add(tag='Losses/Var Norm Total', simple_value=float(v_n_rl))
-
-            self.summary_writer.add_summary(summary, count)
-            count += 1
+            #     [
+            #         self.local_model.value_loss, self.local_model.policy_loss,
+            #         self.local_model.entropy_loss, self.local_model.rl_loss,
+            #         self.local_model.supervised_loss,
+            #         # self.local_model.gradients_rl,
+            #         # self.local_model.apply_gradients_rl,
+            #         # self.local_model.gradients_sl,
+            #         # self.local_model.apply_gradients_sl,
+            #         self.local_model.var_norms_rl,
+            #         self.local_model.var_norms_sl,
+            #         self.local_model.var_norms_total,
+            #         self.local_model.reward_loss,
+            #         self.local_model.transition_loss,
+            #         self.local_model.state_nodes,
+            #         self.local_model.next_state_nodes,
+            #         self.local_model.action_nodes
+            #     ], feed_dict)
+            #
+            # mean_reward = np.mean(reward_batch_consolidated)
+            # mean_value = np.mean(R_batch_consolidated)
+            #
+            # summary = tf.Summary()
+            # summary.value.add(tag='Perf/Reward', simple_value=float(mean_reward))
+            # summary.value.add(tag='Perf/Value', simple_value=float(mean_value))
+            # summary.value.add(tag='Losses/Value Loss', simple_value=float(v_l))
+            # summary.value.add(tag='Losses/Policy Loss', simple_value=float(p_l))
+            # summary.value.add(tag='Losses/Entropy', simple_value=float(e_l))
+            #
+            # summary.value.add(tag='Losses/Supervised Loss', simple_value=float(sl_loss))
+            # summary.value.add(tag='Losses/RL Loss', simple_value=float(rl_loss))
+            #
+            # summary.value.add(tag='Losses/Var Norm RL', simple_value=float(v_n_rl))
+            # summary.value.add(tag='Losses/Var Norm SL', simple_value=float(v_n_rl))
+            # summary.value.add(tag='Losses/Var Norm Total', simple_value=float(v_n_rl))
+            #
+            # self.summary_writer.add_summary(summary, count)
+            # count += 1
         self.env.stop()
 
     def process_observation(self, cur_state):
         # return self.local_model.agent.UpdatePositionVisibility(cur_state[0], cur_state[1])
+        print('state:', cur_state[0].tolist())
         return DDNBasePreprocessor.obs_to_state(cur_state[0].astype(np.int32))

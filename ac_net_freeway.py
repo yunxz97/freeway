@@ -3,9 +3,9 @@ import numpy as np
 import tensorflow as tf
 import tensorflow.contrib.layers as tcl
 
-from agents.learnable import FreewayLearnableAgent
+from agents.base import FreewayBaseAgent as FreewayAgent
 import tf_utils
-from lib.BasicInferUnit import InferNetPipeLine, InferNetRNN
+from lib.BasicInferUnit import InferNetPipeLine
 from constants import TEMPERATURE
 
 Temperature = TEMPERATURE
@@ -30,7 +30,8 @@ class ACNetFreeway(object):
         self.supervised_optimizer = tf.train.RMSPropOptimizer(self.supervised_lr)
 
         self.input_s, self.input_sprime, self.input_r, self.input_a, self.advantage, \
-        self.target_v, self.policy, self.value, self.action_est, self.model_variables_rl, self.model_variables_sl = self._build_network(name)
+        self.target_v, self.policy, self.value, self.action_est, \
+        self.model_variables_rl, self.model_variables_sl, self.final_state = self._build_network(name)
         # 0.5, 0.2, 1.0
         self.value_loss = 0.5 * tf.reduce_mean(tf.square(self.target_v - tf.reshape(self.value, [-1])))
         self.entropy_loss = tf.reduce_mean(tf.reduce_sum(self.policy * tf.log(self.policy), axis=1))
@@ -175,7 +176,7 @@ class ACNetFreeway(object):
         target_v = tf.placeholder(tf.float32, [None])
 
         with tf.variable_scope(name):
-            self.agent = FreewayLearnableAgent(simulate_steps=self.SIM_STEPS,
+            self.agent = FreewayAgent(simulate_steps=self.SIM_STEPS,
                                           max_bp_steps=self.BP_STEPS,
                                           mult_fac=self.MULT_FAC,
                                           discount_factor=.99,
@@ -195,6 +196,7 @@ class ACNetFreeway(object):
             input_a = tf.placeholder(tf.int64, [None] + self.agent.action_dim)
 
             fab = self.agent.final_action_belief * Temperature
+            final_state = self.agent.final_state
 
             if LAYER_OVER_POLICY:
                 policy = tf_utils.fc(
@@ -232,7 +234,8 @@ class ACNetFreeway(object):
         model_variables_rl = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=name + '/rl_params')
         model_variables_sl = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=name + '/sl_params')
 
-        return input_s, input_sprime, input_r, input_a, advantage, target_v, policy, value, action_est, model_variables_rl, model_variables_sl
+        return input_s, input_sprime, input_r, input_a, advantage, target_v, policy, value, action_est, \
+               model_variables_rl, model_variables_sl, final_state
 
     def get_action(self, state, sess):
         state = np.reshape(state, [-1, np.sum(self.agent.all_state_dim)])
@@ -241,10 +244,15 @@ class ACNetFreeway(object):
         if (type(self.agent.infer_net) == InferNetPipeLine):
             feed_dict[self.agent.infer_net.simulate_steps] = self.SIM_STEPS
             feed_dict[self.agent.infer_net.max_steps] = self.SIM_STEPS + (self.BP_STEPS - 1) * 2
-        policy = sess.run(self.policy, feed_dict)
+        [policy, final_state] = sess.run([self.policy, self.final_state], feed_dict)
+        # print(final_state[0].shape, final_state[1].shape, final_state[12].shape)
+        print(f"prediction: {[np.argmax(s) for s in final_state]}")
+        # print(f"{final_state[2]}")
+        # print(policy)
         action = np.zeros([np.shape(state)[0], int(np.sum(self.agent.action_dim))])
         for idx, p in enumerate(policy) :
-            action[idx, np.random.choice(range(int(np.sum(self.agent.action_dim))), p=p)] = 1
+            # action[idx, np.random.choice(range(int(np.sum(self.agent.action_dim))), p=p)] = 1
+            action[idx, np.argmax(p)] = 1
         return action
 
     def predict_policy(self, state, sess):

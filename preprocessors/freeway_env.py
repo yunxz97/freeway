@@ -21,6 +21,7 @@ class FreewayEnvironment:
             'act': [3]}
         self.env = gym.make(env)
         self.extractor = DDNBasePreprocessor()
+        self.R = 0
 
     def obs_spec(self):
         if not self.specs:
@@ -39,7 +40,9 @@ class FreewayEnvironment:
         return
 
     def reset(self):
+        print('total return: ', self.R)
         print('resetting...')
+        self.R = 0
         self.steps = 0
         obs = self.env.reset()
         obs = self.extractor.get_obs(obs)
@@ -49,10 +52,12 @@ class FreewayEnvironment:
         obs, r, done, info = self.env.step(action)
         if r != 0:
             print('Success!')
+            self.R += r * np.power(GAMMA, self.steps)
         if self.steps == self.max_steps:
             done = True
         obs = self.extractor.get_obs(obs)
         self.steps += 1
+        # self.env.render()
         return obs, r, done, info
 
     def get_info(self):

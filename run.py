@@ -147,8 +147,9 @@ def main():
 
     for w in workers:
         w.set_sess(sess)
-    print('here')
-    if load_model == True:
+
+
+    if load_model:
         print('Loading Model...')
         ckpt = tf.train.get_checkpoint_state(model_path)
         print(ckpt.model_checkpoint_path)

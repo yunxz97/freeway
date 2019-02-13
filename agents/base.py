@@ -124,10 +124,12 @@ class FreewayBaseAgent:
         self.init_state_pl = self.infer_net.init_belief
         self.obj_v = self.infer_net.objv
         self.final_action_belief = self.infer_net.final_final_action
+        self.final_state = self.infer_net.final_final_state
 
         # self.final_state = self.infer_net.final_state
 
         self.policy = tf.nn.softmax(self.final_action_belief[0] * Temperature) + 1e-8
+
 
         # self.hidden1 = tf.concat([self.init_state_pl, self.final_action_belief[0]], axis=1)
         #
