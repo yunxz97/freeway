@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-from constants import SCREEN_WIDTH, SCREEN_HEIGHT, DOWNSAMPLING
+from constants import SCREEN_WIDTH, SCREEN_HEIGHT, SL_ENABLE
 import numpy as np
 import tensorflow as tf
 from lib.BasicInferUnit import InferNetRNN, InferNetPipeLine, InferNetNoRepeatComputeRNN
@@ -110,7 +110,8 @@ class FreewayBaseAgent:
 
         # with tf.variable_scope(self.scope + '_infer_net'):
         self.factors = factors
-        self.reward_factors_instate = []
+        self.reward_factors_instate_st = []
+        self.reward_factors_instate_stprime = []
         self.reward_factors_crossstate = []
         self.state_transition_factors = []
         self.add_in_state_factor()
@@ -185,7 +186,8 @@ class FreewayBaseAgent:
                 [variable_mapping["chicken_y"]],
                 self.dest_reward_factor)
         )
-        self.reward_factors_instate.append(self.in_state_factor[-1])
+        if SL_ENABLE:
+            self.reward_factors_instate_stprime.append(self.in_state_factor[-1])
 
     def create_in_state_factor(self, factor_nodes, factor):
         cfactor = dict()
@@ -199,13 +201,13 @@ class FreewayBaseAgent:
         #     self.car_move_factors = [self.factors.CarMovementConvFactor(car=i + 1, train=True) for i in range(10)]
         #     self.chicken_move_factor = self.factors.ChickenMovementDownsampledFactor(train=True)
         # else:
-        self.car_move_factors = [self.factors.CarMovementConvFactor(car=i+1, train=True) for i in range(10)]
+        self.car_move_factors = [self.factors.CarMovementFactor(car=i+1, train=True) for i in range(10)]
         self.chicken_move_factor = self.factors.ChickenMovementFactor(train=True)
 
         self.cross_state_factor = [
             self.create_cross_state_factor(
                 [variable_mapping["car"+str(i+1)+"_x"]],
-                [0],  # dummy action
+                [],  # dummy action
                 [variable_mapping["car"+str(i+1)+"_x"]],
                 self.car_move_factors[i]
             ) for i in range(10)

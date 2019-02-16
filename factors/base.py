@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 from lib.transition import Factors, ConvFactor1D
 from constants import SMALL_NON_ZERO, TRAIN_FACTOR_WEIGHTS, \
-    SCREEN_WIDTH, SCREEN_HEIGHT, HIT_IMPACT, PLAYER_MOVE_SPEED, DOWNSAMPLING
+    SCREEN_WIDTH, SCREEN_HEIGHT, HIT_IMPACT, PLAYER_MOVE_SPEED, DOWNSAMPLING, SL_ENABLE
 from utils import to_log_probability
 
 
@@ -50,7 +50,7 @@ class CarMovementFactor(FactorWrapper):
         else:
             transition_mtx[mtx_range, (mtx_range + speed) % dist] = 1
 
-        self.build(transition_mtx, train, SL=True, RL=True, name=car, max_clip_value=1)
+        self.build(transition_mtx, train, SL=SL_ENABLE, RL=True, name=car, max_clip_value=1)
 
 
 class CarMovementConvFactor(ConvFactor1D):
@@ -125,7 +125,7 @@ class ChickenMovementFactor(FactorWrapper):
         # print(transition_mtx[191, 0, 1])
         # print(transition_mtx[191, 0, 2])
 
-        self.build(transition_mtx, train, SL=True, RL=True, max_clip_value=1)
+        self.build(transition_mtx, train, SL=SL_ENABLE, RL=True, max_clip_value=1)
 
 
 # class ChickenMovementDownsampledFactor(FactorWrapper):
@@ -191,7 +191,7 @@ class CarHitFactor(FactorWrapper):
         transition_mtx[:, :, 0] = 1
         transition_mtx[car_slice, chicken_x, 0] = 0
 
-        self.build(transition_mtx, train, SL=True, RL=True, name=car, max_clip_value=1)
+        self.build(transition_mtx, train, SL=SL_ENABLE, RL=True, name=car, max_clip_value=1)
 
 #
 # class CarHitDownsampledFactor(FactorWrapper):
@@ -232,7 +232,7 @@ class HitFactor(FactorWrapper):
         transition_mtx[:, :, :, :, :, :, :, :, :, :, 0] = 0
         transition_mtx[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] = 1
 
-        self.build(transition_mtx, train, SL=False, RL=False, max_clip_value=1)
+        self.build(transition_mtx, train, SL=SL_ENABLE, RL=False, max_clip_value=1)
 
 
 class DestinationRewardFactor(FactorWrapper):
@@ -243,7 +243,7 @@ class DestinationRewardFactor(FactorWrapper):
 
         transition_mtx[:23] = 10
 
-        self.build(transition_mtx, train, SL=True, RL=True, max_clip_value=10000)
+        self.build(transition_mtx, train, SL=SL_ENABLE, RL=True, max_clip_value=10000)
 
 
 # class DestinationRewardDownsampledFactor(FactorWrapper):
@@ -263,4 +263,4 @@ class YRewardFactor(FactorWrapper):
 
         transition_mtx = np.arange(1, .99, -.01 / dist)[:dist]
         # print(transition_mtx)
-        self.build(transition_mtx, train, SL=True, RL=True, max_clip_value=dist)
+        self.build(transition_mtx, train, SL=SL_ENABLE, RL=True, max_clip_value=dist)

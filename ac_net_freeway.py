@@ -6,7 +6,7 @@ import tensorflow.contrib.layers as tcl
 from agents.base import FreewayBaseAgent as FreewayAgent
 import tf_utils
 from lib.BasicInferUnit import InferNetPipeLine
-from constants import TEMPERATURE, GAMMA
+from constants import TEMPERATURE, GAMMA, SL_ENABLE
 
 Temperature = TEMPERATURE
 LAYER_OVER_POLICY = False
@@ -14,7 +14,8 @@ LAYER_OVER_POLICY = False
 
 class ACNetFreeway(object):
     def __init__(self, rl_lr, supervised_lr,
-                 name, SIM_STEPS, BP_STEPS, MULT_FAC, BETA, global_name='global', sequential=False):
+                 name, SIM_STEPS, BP_STEPS, MULT_FAC, BETA,
+                 global_name='global', sequential=False, sl_enabled=SL_ENABLE):
 
         self.name = name
         self.SIM_STEPS = SIM_STEPS
@@ -25,9 +26,10 @@ class ACNetFreeway(object):
         self.sequential = sequential
         self.rl_lr = rl_lr
         self.supervised_lr = supervised_lr
+        self.sl_enabled = sl_enabled
 
-        self.rl_optimizer = tf.train.RMSPropOptimizer(self.rl_lr)
-        self.supervised_optimizer = tf.train.RMSPropOptimizer(self.supervised_lr)
+        self.rl_optimizer = tf.train.AdamOptimizer(self.rl_lr)
+        # self.supervised_optimizer = tf.train.RMSPropOptimizer(self.supervised_lr)
 
         self.input_s, self.input_sprime, self.input_r, self.input_a, self.advantage, \
         self.target_v, self.policy, self.value, self.action_est, \
@@ -42,41 +44,67 @@ class ACNetFreeway(object):
         self.gradients_rl = tf.gradients(self.rl_loss, self.model_variables_rl)
         self.gradients_rl, self.grad_rl_norm = tf.clip_by_global_norm(self.gradients_rl, 5.0)
 
-        self.supervised_loss = self.get_sl_loss()
-        self.gradients_sl = tf.gradients(self.supervised_loss, self.model_variables_sl)
-        self.gradients_sl, self.grad_sl_norm = tf.clip_by_global_norm(self.gradients_sl, 5.0)
+        if self.sl_enabled:
+            self.supervised_optimizer = tf.train.AdamOptimizer(
+                self.supervised_lr)
+            self.supervised_loss = self.get_sl_loss()
+            self.gradients_sl = tf.gradients(self.supervised_loss,
+                                             self.model_variables_sl)
+            self.gradients_sl, self.grad_sl_norm = tf.clip_by_global_norm(self.gradients_sl, 5.0)
+        else:
+            self.supervised_loss = self.get_sl_loss()
+            self.gradients_sl = tf.constant(0)
+            self.grad_sl_norm = tf.constant(0)
 
         if name != global_name:
             self.var_norms_rl = tf.global_norm(self.model_variables_rl)
-            global_variables_rl = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, global_name + '/rl_params')
-            self.apply_gradients_rl = self.rl_optimizer.apply_gradients(zip(self.gradients_rl, global_variables_rl))
+            global_variables_rl = tf.get_collection(
+                tf.GraphKeys.TRAINABLE_VARIABLES, global_name + '/rl_params')
+            self.apply_gradients_rl = self.rl_optimizer.apply_gradients(
+                zip(self.gradients_rl, global_variables_rl))
 
-            self.var_norms_sl = tf.global_norm(self.model_variables_sl)
-            global_variables_sl = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, global_name + '/sl_params')
-            self.apply_gradients_sl = self.supervised_optimizer.apply_gradients(zip(self.gradients_sl, global_variables_sl))
+            if self.sl_enabled:
+                self.var_norms_sl = tf.global_norm(self.model_variables_sl)
+                global_variables_sl = tf.get_collection(
+                    tf.GraphKeys.TRAINABLE_VARIABLES,
+                    global_name + '/sl_params')
+                self.apply_gradients_sl = self.supervised_optimizer.apply_gradients(
+                    zip(self.gradients_sl, global_variables_sl))
+            else:
+                self.var_norms_sl, self.apply_gradients_sl = tf.constant(0), tf.constant(0)
 
             self.var_norms_total = tf.global_norm(self.model_variables_rl + self.model_variables_sl)
 
     def get_sl_loss(self):
         cross_state_factors = self.agent.state_transition_factors
-        reward_factors_instate = self.agent.reward_factors_instate
+        reward_factors_instate_stprime = self.agent.reward_factors_instate_stprime
+        reward_factors_instate_st = self.agent.reward_factors_instate_st
         reward_factor_crossstate = self.agent.reward_factors_crossstate
         reward_targets = self.input_r
 
-        state_nodes = self.get_variable_values(self.input_s, self.agent.all_state_dim)
-        next_state_nodes = self.get_variable_values(self.input_sprime, self.agent.all_state_dim)
-        action_nodes = self.get_variable_values(self.input_a, self.agent.action_dim)
+        state_nodes = self.get_variable_values(self.input_s,
+                                               self.agent.all_state_dim)
+        next_state_nodes = self.get_variable_values(self.input_sprime,
+                                                    self.agent.all_state_dim)
+        action_nodes = self.get_variable_values(self.input_a,
+                                                self.agent.action_dim)
         self.state_nodes, self.next_state_nodes, self.action_nodes = state_nodes, next_state_nodes, action_nodes
-        transition_loss = self.get_loss_transition_cross_entropy(action_nodes, cross_state_factors,
-                                                         next_state_nodes, state_nodes)
 
-        reward_loss = self.get_loss_for_reward_factors(reward_factors_instate, reward_factor_crossstate,
-                                                    state_nodes, next_state_nodes, action_nodes, reward_targets)
+        if self.sl_enabled:
+            transition_loss = self.get_loss_transition_cross_entropy(
+                action_nodes, cross_state_factors, next_state_nodes, state_nodes)
+
+            reward_loss = self.get_loss_for_reward_factors(
+                reward_factors_instate_st,reward_factors_instate_stprime , reward_factor_crossstate, state_nodes,
+                next_state_nodes, action_nodes, reward_targets)
+        else:
+            transition_loss = tf.constant(0)
+            reward_loss = tf.constant(0)
+
         self.reward_loss = reward_loss
         self.transition_loss = transition_loss
         sl_loss = transition_loss + reward_loss
         return tf.reduce_mean(sl_loss)
-
 
     def get_variable_values(self, placeholder, split_desc):
         nodes = tf.split(placeholder, split_desc, axis=1)
@@ -84,79 +112,132 @@ class ACNetFreeway(object):
             nodes[idx] = tf.expand_dims(tf.argmax(var, axis=1), axis=1)
         return nodes
 
+    def get_variable_values(self, placeholder, split_desc):
+        nodes = tf.split(placeholder, split_desc, axis=1)
+        for idx, var in enumerate(nodes):
+            nodes[idx] = tf.expand_dims(tf.argmax(var, axis=1), axis=1)
+        return nodes
 
-    def get_loss_for_transition_factor(self, action_nodes, factor, next_state_nodes, state_nodes):
-        potential = factor['Factor'][0].sl_params
-        state_node_ids, action_node_ids, next_state_node_ids = factor['cnodes'], factor['action'], factor['nextnodes']
+    def get_loss_for_transition_factor(self, action_nodes, factor,
+                                       next_state_nodes, state_nodes):
+        # potential = factor['Factor'][0].sl_params
+        state_node_ids, action_node_ids, next_state_node_ids = factor[
+            'cnodes'], factor['action'], factor['nextnodes']
 
-        state_variable_assignments = [state_nodes[state_var] for state_var in state_node_ids]
-        action_variable_assignments = [action_nodes[action_var] for action_var in action_node_ids]
+        state_variable_assignments = [
+            state_nodes[state_var] for state_var in state_node_ids
+        ]
+        action_variable_assignments = [
+            action_nodes[action_var] for action_var in action_node_ids
+        ]
+        next_state_variable_assignments = [
+            next_state_nodes[state_var] for state_var in next_state_node_ids
+        ]
+        all_labels = state_variable_assignments + action_variable_assignments + next_state_variable_assignments
 
-        label_indices = self.get_label_indices(next_state_node_ids, next_state_nodes)
+        label_indices = self.get_label_indices(next_state_node_ids,
+                                               next_state_nodes)
 
-        state_action_indices = tf.concat(state_variable_assignments + action_variable_assignments, axis=1)
-        next_state_factor_potential = tcl.flatten(tf.gather_nd(potential, state_action_indices))
-        labels = tf.stop_gradient(tf.one_hot(indices=label_indices, depth=next_state_factor_potential.shape[1]))
-
-        loss_for_potential = tf.nn.softmax_cross_entropy_with_logits_v2(labels=labels,
-                                                                        logits=next_state_factor_potential,
-                                                                        dim=-1,
-                                                                        name='sl_loss_' + factor['name'])
+        state_action_indices = tf.concat(
+            state_variable_assignments + action_variable_assignments, axis=1)
+        loss_for_potential = factor['Factor'][0].getTransitionLoss(
+            gather_indices=state_action_indices,
+            labels=label_indices,
+            all_labels=all_labels,
+            name=factor['name'])
+        # next_state_factor_potential = tcl.flatten(tf.gather_nd(potential, state_action_indices))
+        # labels = tf.stop_gradient(tf.one_hot(indices=label_indices, depth=next_state_factor_potential.shape[1]))
+        #
+        # loss_for_potential = tf.nn.softmax_cross_entropy_with_logits_v2(labels=labels,
+        #                                                                 logits=next_state_factor_potential,
+        #                                                                 dim=-1,
+        #                                                                 name='sl_loss_' + factor['name'])
         return loss_for_potential
 
 
-    def get_loss_transition_cross_entropy(self, action_nodes, cross_state_factors, next_state_nodes, state_nodes):
+    def get_loss_transition_cross_entropy(self, action_nodes,
+                                          cross_state_factors,
+                                          next_state_nodes, state_nodes):
         loss_transition_cross_entropy = None
         for factor in cross_state_factors:
-            loss_for_potential = self.get_loss_for_transition_factor(action_nodes, factor, next_state_nodes,
-                                                                     state_nodes)
+            loss_for_potential = self.get_loss_for_transition_factor(
+                action_nodes, factor, next_state_nodes, state_nodes)
             if loss_transition_cross_entropy is None:
                 loss_transition_cross_entropy = loss_for_potential
             else:
                 loss_transition_cross_entropy += loss_for_potential
+        if loss_transition_cross_entropy is None:
+            return tf.constant(0)
         return loss_transition_cross_entropy
 
 
-    def get_loss_for_reward_factors(self, reward_factors_instate, reward_factor_crossstate,
-                                    state_nodes, next_state_nodes, action_nodes, reward_targets):
+    def get_loss_for_reward_factors(
+            self, reward_factors_instate_st,reward_factors_instate_stprime, reward_factor_crossstate,
+            state_nodes, next_state_nodes, action_nodes, reward_targets):
         next_state_factor_potential = None
-        for factor in reward_factors_instate:
+        for factor in reward_factors_instate_st:
             reward = self.get_reward_value_instate(factor, state_nodes)
             if next_state_factor_potential is None:
                 next_state_factor_potential = reward
             else:
                 next_state_factor_potential += reward
 
-        for factor in reward_factor_crossstate :
-            reward = self.get_reward_value_crossstate(factor, state_nodes, next_state_nodes, action_nodes)
+        for factor in reward_factors_instate_stprime:
+            reward = self.get_reward_value_instate(factor, next_state_nodes)
             if next_state_factor_potential is None:
                 next_state_factor_potential = reward
             else:
                 next_state_factor_potential += reward
 
-        reward_mse_loss = 0.5 * tf.square(reward_targets - next_state_factor_potential)
+        for factor in reward_factor_crossstate:
+            reward = self.get_reward_value_crossstate(
+                factor, state_nodes, next_state_nodes, action_nodes)
+            if next_state_factor_potential is None:
+                next_state_factor_potential = reward
+            else:
+                next_state_factor_potential += reward
+
+        if next_state_factor_potential is None:
+            return tf.constant(0)
+
+        reward_mse_loss = 0.5 * tf.square(reward_targets -
+                                          next_state_factor_potential)
         return reward_mse_loss
 
     def get_reward_value_instate(self, factor, state_nodes):
-        potential = factor['Factor'][0].sl_params
+        # potential = factor['Factor'][0].sl_params
         state_node_ids = factor['nodes']
-        state_variable_assignments = [state_nodes[state_var] for state_var in state_node_ids]
+        state_variable_assignments = [
+            state_nodes[state_var] for state_var in state_node_ids
+        ]
 
         state_action_indices = tf.concat(state_variable_assignments, axis=1)
-        reward = tf.gather_nd(potential, state_action_indices)
+        reward = factor['Factor'][0].getRewardValue(state_action_indices)
+        # reward = tf.gather_nd(potential, state_action_indices)
         return reward
 
 
     def get_reward_value_crossstate(self, factor, state_nodes, next_state_nodes, action_nodes):
-        potential = factor['Factor'][0].sl_params
-        state_node_ids, action_node_ids, next_state_node_ids = factor['cnodes'], factor['action'], factor['nextnodes']
+        # potential = factor['Factor'][0].sl_params
+        state_node_ids, action_node_ids, next_state_node_ids = factor[
+            'cnodes'], factor['action'], factor['nextnodes']
 
-        state_variable_assignments = [state_nodes[state_var] for state_var in state_node_ids]
-        action_variable_assignments = [action_nodes[action_var] for action_var in action_node_ids]
-        next_state_variable_assignments = [next_state_nodes[state_var] for state_var in next_state_nodes]
+        state_variable_assignments = [
+            state_nodes[state_var] for state_var in state_node_ids
+        ]
+        action_variable_assignments = [
+            action_nodes[action_var] for action_var in action_node_ids
+        ]
+        next_state_variable_assignments = [
+            next_state_nodes[state_var] for state_var in next_state_nodes
+        ]
 
-        state_action_indices = tf.concat(state_variable_assignments + action_variable_assignments + next_state_variable_assignments, axis=1)
-        reward = tf.gather_nd(potential, state_action_indices)
+        state_action_indices = tf.concat(
+            state_variable_assignments + action_variable_assignments +
+            next_state_variable_assignments,
+            axis=1)
+        # reward = tf.gather_nd(potential, state_action_indices)
+        reward = factor['Factor'][0].getRewardValue(state_action_indices)
         return reward
 
     def get_label_indices(self, next_state_node_ids, next_state_nodes):
@@ -198,33 +279,45 @@ class ACNetFreeway(object):
             fab = self.agent.final_action_belief * Temperature
             final_state = self.agent.final_state
 
-            if LAYER_OVER_POLICY:
-                policy = tf_utils.fc(
-                    fab,
-                    np.sum(self.agent.action_dim),
-                    activation_fn=tf.nn.softmax,
-                    scope="policy",
-                    initializer=tf_utils.normalized_columns_initializer(0.01)) + 1e-8
-            else:
-                policy = tf.nn.softmax(fab)[0] + 1e-8  # TODO:dirty fix by zhen, maybe a bug of tf (the suffix 0).
-                # input_s1, input_s2, input_s3 = tf.split(self.agent.init_state_pl, [5,6,2], axis=1)
-                # input_s_new = tf.expand_dims(tf.expand_dims(input_s1, 2),3) + \
-                #               tf.expand_dims(tf.expand_dims(input_s2, 1), 3) + \
-                #               tf.expand_dims(tf.expand_dims(input_s2, 1), 2)
-                input_s_new = self.agent.init_state_pl
-                input_s_new = tf.exp(input_s_new)
-                input_s_new = tcl.flatten(input_s_new)
+            with tf.variable_scope('rl_params'):
+                if LAYER_OVER_POLICY:
+                    policy = tf_utils.fc(
+                        fab,
+                        np.sum(self.agent.action_dim),
+                        activation_fn=tf.nn.softmax,
+                        scope="policy",
+                        initializer=tf_utils.normalized_columns_initializer(0.01)) + 1e-8
+                else:
+                    policy = tf.nn.softmax(fab)[0] + 1e-8  # TODO:dirty fix by zhen, maybe a bug of tf (the suffix 0).
+                    # input_s1, input_s2, input_s3 = tf.split(self.agent.init_state_pl, [5,6,2], axis=1)
+                    # input_s_new = tf.expand_dims(tf.expand_dims(input_s1, 2),3) + \
+                    #               tf.expand_dims(tf.expand_dims(input_s2, 1), 3) + \
+                    #               tf.expand_dims(tf.expand_dims(input_s2, 1), 2)
+                    # input_s_new = self.agent.init_state_pl
+                    # input_s_new = tf.exp(input_s_new)
+                    # input_s_new = tcl.flatten(input_s_new)
 
-            layer1 = tf_utils.fc(
-                input_s_new,
-                300,
-                scope="fc1",
-                activation_fn=tf.nn.relu,
-                initializer=tf.contrib.layers.variance_scaling_initializer(
-                    mode="FAN_IN"))
+                # layer1 = tf_utils.fc(
+                #     input_s_new,
+                #     300,
+                #     scope="fc1",
+                #     activation_fn=tf.nn.relu,
+                #     initializer=tf.contrib.layers.variance_scaling_initializer(
+                #         mode="FAN_IN"))
 
-            value = tf_utils.fc(layer1, 1, activation_fn=None,
-                                scope="value", initializer=tf_utils.normalized_columns_initializer(1.0))
+                layer1 = tf_utils.fc(
+                    (input_s + 100) * 0.01,
+                    300,
+                    scope="fc1",
+                    activation_fn=tf.nn.relu,
+                    initializer=tf.contrib.layers.variance_scaling_initializer(mode="FAN_IN"))
+
+                value = tf_utils.fc(
+                    layer1,
+                    1,
+                    activation_fn=None,
+                    scope="value",
+                    initializer=tf_utils.normalized_columns_initializer(1.0))
 
             input_a_cast = tf.cast(input_a, tf.float32)
             action_est = tf.reduce_sum(policy * input_a_cast, 1)
@@ -251,7 +344,8 @@ class ACNetFreeway(object):
         # print(policy)
         action = np.zeros([np.shape(state)[0], int(np.sum(self.agent.action_dim))])
         for idx, p in enumerate(policy) :
-            action[idx, np.random.choice(range(int(np.sum(self.agent.action_dim))), p=p)] = 1
+            action[idx,
+                   np.random.choice(range(int(np.sum(self.agent.action_dim))), p=p)] = 1
             # action[idx, np.argmax(p)] = 1
         return action
 
@@ -267,8 +361,5 @@ class ACNetFreeway(object):
 
     def predict_value(self, state, sess):
         state = np.reshape(state, [-1, np.sum(self.agent.all_state_dim)])
-        feed_dict = {self.agent.init_state_pl: state}
-        if type(self.agent.infer_net) == InferNetPipeLine:
-            feed_dict[self.agent.infer_net.simulate_steps] = self.SIM_STEPS
-            feed_dict[self.agent.infer_net.max_steps] = self.SIM_STEPS + (self.BP_STEPS - 1) * 2
+        feed_dict = {self.input_s: state}
         return sess.run(self.value, feed_dict)

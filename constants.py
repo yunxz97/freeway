@@ -8,6 +8,7 @@ LOG_ZERO = -1e3
 
 # switches
 DOWNSAMPLING = True
+SL_ENABLE = False
 
 # env constants
 ENV_MAX_STEPS = 3000
@@ -24,8 +25,8 @@ LANES = [(167, 187), (151, 169), (135, 153), (119, 137), (104, 121), (87, 104), 
 # params
 TEMPERATURE = 1000
 WORKER_MAX_STEPS = 100000
-SIM_STEPS = 10
-BP_STEPS = 10
+SIM_STEPS = 2
+BP_STEPS = 2
 NUM_MULTI_ENV = 1
 DEVICE = 'gpu'
 N_GPU = 2
