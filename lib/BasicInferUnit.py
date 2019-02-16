@@ -77,15 +77,15 @@ class BasicInferUnit(RNNCell):
         self.colored_factors = self.color_factors(self.factor_int_mapping)
         self.merged_groups = self.create_groups(self.colored_factors)
         self.in_state_factor_groups, self.cross_state_factor_groups = self.separate_group()
-        for idx, cg in enumerate(self.in_state_factor_groups):
-            print("IState Group {}".format(idx))
-            for clu in cg:
-                print("\t name {} nodes {}".format(clu['name'], clu['nodes']))
-        
-        for idx, cg in enumerate(self.cross_state_factor_groups):
-            print("CState Group {}:".format(idx))
-            for clu in cg:
-                print("\t name: {} cnodes {} action {} nnodes {}".format(clu['name'], clu['cnodes'], clu['action'], clu['nextnodes']))
+        # for idx, cg in enumerate(self.in_state_factor_groups):
+        #     print("IState Group {}".format(idx))
+        #     for clu in cg:
+        #         print("\t name {} nodes {}".format(clu['name'], clu['nodes']))
+        #
+        # for idx, cg in enumerate(self.cross_state_factor_groups):
+        #     print("CState Group {}:".format(idx))
+        #     for clu in cg:
+        #         print("\t name: {} cnodes {} action {} nnodes {}".format(clu['name'], clu['cnodes'], clu['action'], clu['nextnodes']))
         self.in_state_start_ids = self.map_in_state_factor_start_ids()
         self.cross_state_st_start_ids, self.cross_state_a_start_ids, self.cross_state_stp_start_ids = self.map_cross_state_factor_start_ids()
 

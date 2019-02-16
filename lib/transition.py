@@ -4,10 +4,12 @@ from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division
 
+# import gin
 import numpy as np
 import tensorflow as tf
 from .common_ops import to_log_scale
 from .ops_utils import get_MRFInferGPU
+import tensorflow.contrib.layers as tcl
 
 MaxPossibleSteps = 31  # 0 - 30, hardcoded to one hot vector
 V_table = [[-12, -4], [-12, -3], [-12, -2], [-12, -1], [-12, 0], [-12, 1],
@@ -25,7 +27,7 @@ V_table = [[-12, -4], [-12, -3], [-12, -2], [-12, -1], [-12, 0], [-12, 1],
            [12, 4]]
 PossibleV = int(len(V_table))
 
-MinusInfinity = -1000000
+MinusInfinity = -10000
 
 MaxX = 255
 MaxY = 255
@@ -99,10 +101,12 @@ class Factors:
         nLocalBeliefs = MRFInferGPU.upd_msg(upd_hops,
                                             [tf.float32] * len(LocalBeliefs))
 
-        nmbeliefs, nmsg_merged = MRFInferGPU.upd_msg_belief(
-            mlb, tf.concat(nLocalBeliefs, axis=1), mmsg)
-        nLocalBeliefs = tf.split(nmbeliefs, sp_shapes, axis=1)
-        nmsg_merged = tf.split(nmsg_merged, sp_shapes, axis=1)
+        # nmbeliefs, nmsg_merged = MRFInferGPU.upd_msg_belief(
+        #     mlb, tf.concat(nLocalBeliefs, axis=1), mmsg)
+        # nLocalBeliefs = tf.split(nmbeliefs, sp_shapes, axis=1)
+        mhat_msgs = mlb - mmsg
+        nmsg_merged = tf.split(tf.concat(nLocalBeliefs, axis=1) - mhat_msgs, sp_shapes, axis=1)
+        # nmsg_merged = tf.split(nmsg_merged, sp_shapes, axis=1)
 
         nBelief = [
             tf.split(nLocalBeliefs[lidx], len(NodeBeliefs), axis=0)
@@ -117,6 +121,26 @@ class Factors:
                 for idx in range(len(NodeBeliefs))], \
             [[nMsg[lidx][idx]
               for lidx in range(MsgDims)] for idx in range(len(NodeBeliefs))]
+
+    def getTransitionLoss(self, gather_indices, labels, all_labels, name):
+        #TODO: rather than passing gather_indices
+        # we should pass a list of assignments, i.e., the assignments for each
+        # node, and then we combine them inside this function
+        next_state_factor_potential = tcl.flatten(
+            tf.gather_nd(self.sl_params, gather_indices)
+        )  #If no sl params, not to be learnt using Supervised Learning
+        labels = tf.stop_gradient(
+            tf.one_hot(
+                indices=labels, depth=next_state_factor_potential.shape[1]))
+        loss_for_potential = tf.nn.softmax_cross_entropy_with_logits_v2(
+            labels=labels,
+            logits=next_state_factor_potential,
+            dim=-1,
+            name='sl_loss_' + name)
+        return loss_for_potential
+
+    def getRewardValue(self, gather_indices):
+        return tf.gather_nd(self.sl_params, gather_indices)
 
     def add_RL_Params(self):
         print("No RL Params")
@@ -358,6 +382,168 @@ class Factors:
         max_over_all = tf.reduce_max(HigherBeliefs, axis=to_be_marginalized)
         sum_all_timeSteps = tf.reduce_sum(max_over_all)
         return sum_all_timeSteps
+
+
+# @gin.configurable
+class ConvFactor1D(Factors):
+    cnt = 0
+
+    def __init__(self,
+                 nchannels,
+                 ksize,
+                 nlabels,
+                 kernel=None,
+                 name=None,
+                 circular_padding=False,
+                 trainable=False,
+                 validate_kernel_shape=True,
+                 with_rl_parmas=False):
+
+        self.nchannels = nchannels
+        self.ksize = ksize
+        assert (ksize >= 1 and isinstance(ksize, int))
+        self.nlabels = nlabels
+        self.circular_padding = circular_padding
+
+        self.paddings = [[0, 0], [int(ksize / 2), int(ksize / 2)], [0, 0]]
+
+        if kernel is not None and validate_kernel_shape:
+            assert (int(kernel.shape[0]) == ksize)
+            assert (int(kernel.shape[1]) == 1)
+            assert (int(kernel.shape[2]) == nchannels)
+        if name is not None:
+            self.name = name
+        else:
+            self.name = 'ConvFactor1D_{}'.format(ConvFactor1D.cnt)
+            ConvFactor1D.cnt += 1
+        with tf.variable_scope(self.name, reuse=tf.AUTO_REUSE) as vs:
+            if isinstance(kernel, tf.Variable):
+                self.k = kernel
+            else:
+                if kernel is None:
+                    kernel = np.random.randn(self.ksize, 1, self.nchannels)
+                    kernel = tf.constant(kernel.astype(np.float32))
+                with tf.variable_scope('sl_params'):
+                    self.k = tf.get_variable(
+                        'conv_kernel', initializer=kernel, trainable=trainable)
+                    self.sl_params = self.k
+                if with_rl_parmas:
+                    with tf.variable_scope('rl_params'):
+                        self.rl_params = tf.get_variable(
+                            'conv_kernel_rl',
+                            shape=self.sl_params.shape,
+                            dtype=tf.float32)
+                        self.k = self.k + self.rl_params
+                # kernel must be a distribution
+                self.k = tf.exp(self.k - tf.reduce_logsumexp(
+                    self.k, axis=0, keepdims=True))
+                self.kt = tf.reverse(self.k, [0])
+
+    def padding_inputs(self, pos, pad_val=-1e20):
+        if self.circular_padding is False:
+            return tf.pad(pos, self.paddings, constant_values=pad_val)
+        else:
+            hksize = int(self.ksize / 2)
+            left_pad = pos[:, -hksize:, :]
+            right_pad = pos[:, :hksize, :]
+            padded_val = tf.concat([left_pad, pos, right_pad], axis=1)
+            return padded_val
+
+    def getTransitionLoss(self, gather_indices, labels, all_labels, name):
+        curr_pos = tf.one_hot(all_labels[0], self.nlabels)
+        act = tf.one_hot(all_labels[1], self.nchannels)
+
+        curr_pos = tf.expand_dims(curr_pos, 2)
+        # with tf.control_dependencies([tf.print(curr_pos[:, :, 0])]):
+        curr_pos_padded = self.padding_inputs(curr_pos, 0)
+
+        mov_direcs = act
+        mov_direcs_expanded = tf.expand_dims(mov_direcs, axis=1)
+        c2n = tf.nn.conv1d(curr_pos_padded, self.k, 1,
+                           'VALID') * mov_direcs_expanded
+
+        pred_next = tf.reduce_sum(c2n, axis=2)
+        logz = tf.log(tf.reduce_sum(pred_next, axis=1, keepdims=True))
+        pred_next = tf.log(tf.clip_by_value(pred_next, 1e-10, 1))
+        loss = -tf.batch_gather(
+            pred_next, tf.expand_dims(tf.cast(all_labels[-1], tf.int32),
+                                      1)) + logz
+        # rlabels = tf.stop_gradient(tf.one_hot(all_labels[-1], self.nlabels))
+        # loss = tf.nn.softmax_cross_entropy_with_logits_v2(
+        #     labels=rlabels, logits=pred_next)
+        # print(tf.gradients(loss, self.sl_params))
+        loss = tf.squeeze(loss, axis=1)
+
+        return loss
+
+    @staticmethod
+    def LoopyBP(Hops, NodeBeliefs, Msgs, redis_factor=None, damping=0.25):
+        """
+        Hops must be a list of duplicated conv factors.
+        node order: curr_pos, mov_direc, next_pos
+        """
+        assert (len(NodeBeliefs[0]) == 3)
+        MsgDims = len(NodeBeliefs[0])
+        LocalBeliefs = [
+            tf.concat([bn[lidx] for bn in NodeBeliefs], axis=0)
+            for lidx in range(MsgDims)
+        ]
+        AllMsgs = [
+            tf.concat([msg[lidx] for msg in Msgs], axis=0)
+            for lidx in range(MsgDims)
+        ]
+        # print(LocalBeliefs)
+        sp_shapes = [int(lbelief.shape[1]) for lbelief in LocalBeliefs]
+        mlb = tf.concat(LocalBeliefs, axis=1)
+        mmsg = tf.concat(AllMsgs, axis=1)
+        # print(mlb, mmsg)
+        mhat_msgs = mlb - mmsg
+        hat_msgs = tf.split(mhat_msgs, sp_shapes, axis=1)
+        # print(hat_msgs)
+        k = Hops[0].k
+        kt = Hops[0].kt
+
+        curr_pos = tf.expand_dims(hat_msgs[0], 2)
+
+        curr_pos_padded = Hops[0].padding_inputs(curr_pos)
+        next_pos = tf.expand_dims(hat_msgs[2], 2)
+        next_pos_padded = Hops[0].padding_inputs(next_pos)
+
+        mov_direcs = hat_msgs[1]
+        mov_direcs_expanded = tf.expand_dims(mov_direcs, axis=1)
+        c2n = tf.nn.conv1d(curr_pos_padded, k, 1,
+                           'VALID') + mov_direcs_expanded
+        n2c = tf.nn.conv1d(next_pos_padded, kt, 1,
+                           'VALID') + mov_direcs_expanded
+
+        inv_scale_factor = 1.0 / 3
+        ncurr_pos = inv_scale_factor * (
+            tf.reduce_max(n2c, axis=2) + hat_msgs[0])
+        nnext_pos = inv_scale_factor * (
+            tf.reduce_max(c2n, axis=2) + hat_msgs[2])
+        nmov_direcs = inv_scale_factor * tf.reduce_max(
+            tf.concat([curr_pos + n2c, next_pos + c2n], axis=1), axis=1)
+
+        nLocalBeliefs = [ncurr_pos, nmov_direcs, nnext_pos]
+        nmlb = tf.concat(nLocalBeliefs, axis=1)
+
+        nmsg_merged = nmlb - mhat_msgs
+
+        nmsg_merged = tf.split(nmsg_merged, sp_shapes, axis=1)
+
+        nBelief = [
+            tf.split(nLocalBeliefs[lidx], len(NodeBeliefs), axis=0)
+            for lidx in range(MsgDims)
+        ]
+        nMsg = [
+            tf.split(nmsg_merged[lidx], len(NodeBeliefs), axis=0)
+            for lidx in range(MsgDims)
+        ]
+
+        return [[nBelief[lidx][idx] for lidx in range(MsgDims)]
+                for idx in range(len(NodeBeliefs))], \
+            [[nMsg[lidx][idx]
+              for lidx in range(MsgDims)] for idx in range(len(NodeBeliefs))]
 
 
 class ConvFactor(Factors):
@@ -663,6 +849,10 @@ class ShiftFactor2D(Factors):
             [[nMsg[lidx][idx]
               for lidx in range(MsgDims)] for idx in range(len(NodeBeliefs))]
 
+
+# from .TreeFactor import TreeFactor
+# from .cross_state_factor import SelectFactor, MineralShardsTransition, MoveFactorCommandsVid, MoveFactorCommandsSteps, MoveFactorPosition, MoveFactorPositionJoint
+# from .in_state_factor import SoilderMineralActive, MineralActiveTransition, SoilderMineralActiveXY, SoilderMineralActiveJoint, SoilderMineralActiveJointConv, SoilderDisPos, IsTerminateFactor, SoilderDisPosTerminal, TerminalMineralFactor
 
 if __name__ == '__main__':
     map_shape = [4, 5]

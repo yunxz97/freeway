@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-from constants import SCREEN_WIDTH, SCREEN_HEIGHT
+from constants import SCREEN_WIDTH, SCREEN_HEIGHT, DOWNSAMPLING
 import numpy as np
 import tensorflow as tf
 from lib.BasicInferUnit import InferNetRNN, InferNetPipeLine, InferNetNoRepeatComputeRNN
@@ -84,6 +84,9 @@ variable_range = [
     2
 ]
 
+# if DOWNSAMPLING:
+#     variable_range[0] //= 4
+
 Temperature = 10
 
 
@@ -112,7 +115,7 @@ class FreewayBaseAgent:
         self.state_transition_factors = []
         self.add_in_state_factor()
         self.add_cross_state_factor()
-        self.infer_net = InferNetNoRepeatComputeRNN(
+        self.infer_net = InferNetRNN(
             self.all_state_dim,
             self.action_dim,
             self.simulate_steps,
@@ -143,10 +146,22 @@ class FreewayBaseAgent:
             kernel_initializer=tf.initializers.random_normal(0.01))
 
     def add_in_state_factor(self):
+        # if DOWNSAMPLING:
+        #     self.car_hit_factors = [self.factors.CarHitDownsampledFactor(car=i + 1, train=True) for i in range(10)]
+        #     self.hit_factor = self.factors.HitFactor(train=True)
+        #     # self.dest_reward_factor = self.factors.DestinationRewardFactor(train=True)
+        #     self.Y_reward_factor = self.factors.DestinationRewardDownsampledFactor(train=True)
+        # else:
+        #     self.car_hit_factors = [self.factors.CarHitFactor(car=i+1, train=True) for i in range(10)]
+        #     self.hit_factor = self.factors.HitFactor(train=True)
+        #     # self.dest_reward_factor = self.factors.DestinationRewardFactor(train=True)
+        #     self.Y_reward_factor = self.factors.YRewardFactor(train=True)
+
+
         self.car_hit_factors = [self.factors.CarHitFactor(car=i+1, train=True) for i in range(10)]
         self.hit_factor = self.factors.HitFactor(train=True)
         # self.dest_reward_factor = self.factors.DestinationRewardFactor(train=True)
-        self.Y_reward_factor = self.factors.YRewardFactor(train=True)
+        self.dest_reward_factor = self.factors.DestinationRewardFactor(train=True)
 
         self.in_state_factor = [
             self.create_in_state_factor(
@@ -168,7 +183,7 @@ class FreewayBaseAgent:
         self.in_state_factor.append(
             self.create_in_state_factor(
                 [variable_mapping["chicken_y"]],
-                self.Y_reward_factor)
+                self.dest_reward_factor)
         )
         self.reward_factors_instate.append(self.in_state_factor[-1])
 
@@ -180,13 +195,17 @@ class FreewayBaseAgent:
         return cfactor
 
     def add_cross_state_factor(self):
-        self.car_move_factors = [self.factors.CarMovementFactor(car=i+1, train=True) for i in range(10)]
+        # if DOWNSAMPLING:
+        #     self.car_move_factors = [self.factors.CarMovementConvFactor(car=i + 1, train=True) for i in range(10)]
+        #     self.chicken_move_factor = self.factors.ChickenMovementDownsampledFactor(train=True)
+        # else:
+        self.car_move_factors = [self.factors.CarMovementConvFactor(car=i+1, train=True) for i in range(10)]
         self.chicken_move_factor = self.factors.ChickenMovementFactor(train=True)
 
         self.cross_state_factor = [
             self.create_cross_state_factor(
                 [variable_mapping["car"+str(i+1)+"_x"]],
-                [],
+                [0],  # dummy action
                 [variable_mapping["car"+str(i+1)+"_x"]],
                 self.car_move_factors[i]
             ) for i in range(10)

@@ -1,4 +1,4 @@
-from constants import SCREEN_WIDTH, SCREEN_HEIGHT
+from constants import SCREEN_WIDTH, SCREEN_HEIGHT, DOWNSAMPLING
 import numpy as np
 from scipy import signal
 from utils import to_log_probability
@@ -145,6 +145,9 @@ class DDNBasePreprocessor:
             mask_b = (sub_im[:, :, 2] > 20) & (sub_im[:, :, 2] < 30)
             mask = (mask_r & mask_g & mask_b)
             car10_pos = np.mean(np.where(mask)[1], dtype=np.int16)
+
+        if DOWNSAMPLING:
+            chicken_pos //= 4
 
         result = np.array([chicken_pos, car1_pos, car2_pos, car3_pos, car4_pos,
                            car5_pos, car6_pos, car7_pos, car8_pos, car9_pos, car10_pos], dtype=np.int16)

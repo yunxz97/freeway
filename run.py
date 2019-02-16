@@ -16,6 +16,7 @@ import constants
 PARSER = argparse.ArgumentParser(description=None)
 PARSER.add_argument(
     '-d', '--device', default=constants.DEVICE, type=str, help='choose device: cpu/gpu')
+PARSER.add_argument('-ngpu', '--NUM_GPU', default=constants.N_GPU, type=int, help='Number of available GPUs')
 PARSER.add_argument(
     '-e', '--episodes', default=constants.EPISODES, type=int, help='number of episodes')
 PARSER.add_argument(
@@ -73,6 +74,7 @@ ARGS = PARSER.parse_args()
 print(ARGS)
 
 DEVICE = ARGS.device
+NUM_GPU = ARGS.NUM_GPU
 LEARNING_RATE_RL = ARGS.RL_LEARN_RATE
 LEARNING_RATE_SL = ARGS.SL_LEARN_RATE
 
@@ -103,7 +105,7 @@ def main():
 
     # dummy_env = FreewayEnvironment(args=ENV_ARGS, BP=True)
     # agent_args = populate_args(dummy_env)
-    with tf.device('/{}:0'.format(DEVICE)):
+    with tf.device('/{}:{}'.format(DEVICE, max(NUM_GPU - 1, 0))):
         global_model = ac_net.ACNetFreeway(
             LEARNING_RATE_RL,
             LEARNING_RATE_SL,
@@ -114,7 +116,14 @@ def main():
             BETA=BETA,
             sequential=ISSeq,
             name='global')
+
     workers = []
+
+    if DEVICE == "cpu":
+        device_id = [0] * NUM_WORKERS
+    else:
+        device_id = [i % NUM_GPU for i in range(NUM_WORKERS)]
+
     for i in range(NUM_WORKERS):
         # env = FreewayEnvironment(args=ENV_ARGS, BP=True)
         env = FreewayEnvironment()
@@ -138,7 +147,7 @@ def main():
                 MULT_FAC=MULT_FAC,
                 sequential=ISSeq,
                 logdir=LOG_DIR,
-                devs='/{}:0'.format(DEVICE)))
+                devs='/{}:{}'.format(DEVICE, device_id[i])))
     saver = tf.train.Saver(max_to_keep=5)
 
     config = tf.ConfigProto(allow_soft_placement=True)

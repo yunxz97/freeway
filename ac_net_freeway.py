@@ -6,7 +6,7 @@ import tensorflow.contrib.layers as tcl
 from agents.base import FreewayBaseAgent as FreewayAgent
 import tf_utils
 from lib.BasicInferUnit import InferNetPipeLine
-from constants import TEMPERATURE
+from constants import TEMPERATURE, GAMMA
 
 Temperature = TEMPERATURE
 LAYER_OVER_POLICY = False
@@ -179,7 +179,7 @@ class ACNetFreeway(object):
             self.agent = FreewayAgent(simulate_steps=self.SIM_STEPS,
                                           max_bp_steps=self.BP_STEPS,
                                           mult_fac=self.MULT_FAC,
-                                          discount_factor=.99,
+                                          discount_factor=GAMMA,
                                           # max_x=self.env_args['max_x'],
                                           # max_y=self.env_args['max_y'],
                                           # goal_position=self.env_args['goal_position'],
@@ -246,13 +246,13 @@ class ACNetFreeway(object):
             feed_dict[self.agent.infer_net.max_steps] = self.SIM_STEPS + (self.BP_STEPS - 1) * 2
         [policy, final_state] = sess.run([self.policy, self.final_state], feed_dict)
         # print(final_state[0].shape, final_state[1].shape, final_state[12].shape)
-        print(f"prediction: {[np.argmax(s) for s in final_state]}")
+        print(f"prediction: {[np.argmax(s[0]) for s in final_state]}")
         # print(f"{final_state[2]}")
         # print(policy)
         action = np.zeros([np.shape(state)[0], int(np.sum(self.agent.action_dim))])
         for idx, p in enumerate(policy) :
-            # action[idx, np.random.choice(range(int(np.sum(self.agent.action_dim))), p=p)] = 1
-            action[idx, np.argmax(p)] = 1
+            action[idx, np.random.choice(range(int(np.sum(self.agent.action_dim))), p=p)] = 1
+            # action[idx, np.argmax(p)] = 1
         return action
 
     def predict_policy(self, state, sess):
