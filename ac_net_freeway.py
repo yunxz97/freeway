@@ -1,15 +1,13 @@
 '''Actor-critic network class for a3c'''
 import numpy as np
 import tensorflow as tf
-import tensorflow.contrib.layers as tcl
 
 from agents.base import FreewayBaseAgent as FreewayAgent
 import tf_utils
 from lib.BasicInferUnit import InferNetPipeLine
-from constants import TEMPERATURE, GAMMA, SL_ENABLE
+from constants import TEMPERATURE, GAMMA, SL_ENABLE, LAYER_OVER_POLICY
 
 Temperature = TEMPERATURE
-LAYER_OVER_POLICY = False
 
 
 class ACNetFreeway(object):
@@ -34,6 +32,9 @@ class ACNetFreeway(object):
         self.input_s, self.input_sprime, self.input_r, self.input_a, self.advantage, \
         self.target_v, self.policy, self.value, self.action_est, \
         self.model_variables_rl, self.model_variables_sl, self.final_state = self._build_network(name)
+        with tf.variable_scope(name + '/rl_params', reuse=True):
+            self.reward_factor_value = tf.get_variable("rlDestinationRewardFactor")
+
         # 0.5, 0.2, 1.0
         self.value_loss = 0.5 * tf.reduce_mean(tf.square(self.target_v - tf.reshape(self.value, [-1])))
         self.entropy_loss = tf.reduce_mean(tf.reduce_sum(self.policy * tf.log(self.policy), axis=1))
@@ -332,30 +333,44 @@ class ACNetFreeway(object):
 
     def get_action(self, state, sess):
         state = np.reshape(state, [-1, np.sum(self.agent.all_state_dim)])
-        feed_dict = {self.agent.init_state_pl: state}
 
-        if (type(self.agent.infer_net) == InferNetPipeLine):
-            feed_dict[self.agent.infer_net.simulate_steps] = self.SIM_STEPS
-            feed_dict[self.agent.infer_net.max_steps] = self.SIM_STEPS + (self.BP_STEPS - 1) * 2
+        if type(self.agent.infer_net) == InferNetPipeLine:
+            # state = np.repeat(state, 3, axis=0)[np.newaxis, :]
+            zero_placeholder = np.zeros([state.shape[0], 2, np.sum(self.agent.all_state_dim)])
+            state = np.expand_dims(state, axis=1)
+            state = np.concatenate([zero_placeholder, state], axis=1)
+            action = np.zeros((state.shape[0], 3, 3))
+            feed_dict = {self.agent.init_state_pl: state,
+                         self.agent.init_action_pl: action}
+        else:
+            feed_dict = {self.agent.init_state_pl: state}
+
         [policy, final_state] = sess.run([self.policy, self.final_state], feed_dict)
         # print(final_state[0].shape, final_state[1].shape, final_state[12].shape)
         print(f"prediction: {[np.argmax(s[0]) for s in final_state]}")
         # print(f"{final_state[2]}")
-        # print(policy)
+        print('policy: ', policy)
         action = np.zeros([np.shape(state)[0], int(np.sum(self.agent.action_dim))])
-        for idx, p in enumerate(policy) :
+        for idx, p in enumerate(policy):
             action[idx,
                    np.random.choice(range(int(np.sum(self.agent.action_dim))), p=p)] = 1
             # action[idx, np.argmax(p)] = 1
+        print('action: ', np.argmax(action, axis=1))
         return action
 
     def predict_policy(self, state, sess):
         state = np.reshape(state, [-1, np.sum(self.agent.all_state_dim)])
-        feed_dict = {self.agent.init_state_pl: state}
 
         if type(self.agent.infer_net) == InferNetPipeLine:
-            feed_dict[self.agent.infer_net.simulate_steps] = self.SIM_STEPS
-            feed_dict[self.agent.infer_net.max_steps] = self.SIM_STEPS + (self.BP_STEPS - 1) * 2
+            state = np.repeat(state, 3, axis=0)[np.newaxis, :]
+            action = np.zeros((state.shape[0], 3, 3))
+            self.agent.infer_net.simulate_steps = self.SIM_STEPS
+            self.agent.infer_net.max_steps = self.SIM_STEPS + (self.BP_STEPS - 1) * 2
+            feed_dict = {self.agent.init_state_pl: state,
+                         self.agent.init_action_pl: action}
+        else:
+            feed_dict = {self.agent.init_state_pl: state}
+
         policy = sess.run(self.policy, feed_dict)
         return policy[0]
 

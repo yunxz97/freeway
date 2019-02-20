@@ -13,9 +13,13 @@ class FreewayEnvironment:
     gamma = GAMMA
 
     def __init__(self, args = {}, env="Freeway-v0"):
-        self.artificial_reward = np.zeros((SCREEN_HEIGHT, ))
-        reward_step = SCREEN_HEIGHT // 10
-        self.artificial_reward[np.arange(SCREEN_HEIGHT-1, -1, -reward_step)] = np.arange(11)
+        # self.artificial_reward = np.zeros((SCREEN_HEIGHT, ))
+        # reward_step = SCREEN_HEIGHT // 10
+        # reward_signal_pos = np.arange(SCREEN_HEIGHT-1, -1, -reward_step)
+        # # [51 46 41 36 31 26 21 16 11  6  1]
+        # self.artificial_reward[reward_signal_pos] = np.arange(11)[:len(reward_signal_pos)]
+        self.artificial_reward = np.arange(5, -2, -7 / SCREEN_HEIGHT)[-SCREEN_HEIGHT:]
+        # print(self.artificial_reward)
         self.max_steps = ENV_MAX_STEPS
         self.gamma = GAMMA
         self.specs = {
@@ -83,3 +87,6 @@ class FreewayEnvironment:
     def get_info(self):
         return self.steps, self.max_steps
 
+
+if __name__ == "__main__":
+    env = FreewayEnvironment(env="Freeway-v0")

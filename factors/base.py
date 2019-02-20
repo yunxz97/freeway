@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 from lib.transition import Factors, ConvFactor1D
 from constants import SMALL_NON_ZERO, TRAIN_FACTOR_WEIGHTS, \
-    SCREEN_WIDTH, SCREEN_HEIGHT, HIT_IMPACT, PLAYER_MOVE_SPEED, DOWNSAMPLING, SL_ENABLE
+    SCREEN_WIDTH, SCREEN_HEIGHT, HIT_IMPACT, PLAYER_MOVE_SPEED, DOWNSAMPLING, SL_ENABLE, LOG_ZERO
 from utils import to_log_probability
 
 
@@ -26,6 +26,7 @@ class FactorWrapper(Factors):
             with tf.variable_scope("rl_params"):
                 self.potential = tf.get_variable('rl' + self.__class__.__name__ + str(name),
                                                  initializer=potential, trainable=train)
+                # print(self.potential.name)
         else:
             self.potential = tf.get_variable(self.__class__.__name__ + str(name),
                                              initializer=potential, trainable=False)
@@ -88,7 +89,7 @@ class CarMovementConvFactor(ConvFactor1D):
             with_rl_parmas=True
         )
 
-    def padding_inputs(self, pos, pad_val=-1e20):
+    def padding_inputs(self, pos, pad_val=LOG_ZERO):
         if self.speed > 0:
             left_pad = pos[:, -self.speed:, :]
             padded_val = tf.concat([left_pad, pos], axis=1)
@@ -241,9 +242,9 @@ class DestinationRewardFactor(FactorWrapper):
 
         transition_mtx = np.ones(dist)
 
-        transition_mtx[:23] = 10
+        transition_mtx[:SCREEN_HEIGHT//8] = 5
 
-        self.build(transition_mtx, train, SL=SL_ENABLE, RL=True, max_clip_value=10000)
+        self.build(transition_mtx, train, SL=SL_ENABLE, RL=True, max_clip_value=100)
 
 
 # class DestinationRewardDownsampledFactor(FactorWrapper):

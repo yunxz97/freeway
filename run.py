@@ -171,9 +171,9 @@ def main():
     #     w = tf.get_variable("reward_transition")
     #     print(w.eval(session=sess))
     #
-    # with tf.variable_scope("global/rl_params", reuse=True):
-    #     w = tf.get_variable("RL_RewardFactor")
-    #     print(w.eval(session=sess))
+    with tf.variable_scope("global/rl_params", reuse=True):
+        w = tf.get_variable("rlDestinationRewardFactor")
+        print(w.eval(session=sess))
 
     thread_list = []
     for workeri in workers:

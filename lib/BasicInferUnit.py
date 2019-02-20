@@ -746,9 +746,351 @@ class InferNetNoRepeatComputeRNN:
             tf.concat([self.ninit_belief, input_padding], axis=1), 1)
 
 
-class InferNetPipeLine :
-    def __init__(self):
-        print("Removed : Dummy object for backward compatibility")
+class InferNetPipeLine:
+    def __init__(self,
+                 sizesnodes,
+                 sizeanodes,
+                 simulate_steps,
+                 in_state_factor,
+                 cross_state_factor,
+                 BPIter=50,
+                 value_factor=None):
+        """
+        Create the pipelined inference network.
+
+        :param sizesnodes: a list of positive integer, which states the number of possible labels for all state variables
+        :param sizeanodes: a list of positive integer, which states the number of possible labels for all action variables
+        :param simulate_steps: horizon of planning
+        :param in_state_factor: in state factors
+        :param cross_state_factor: cross state factors
+        :param BPIter: number of beleif propagation iterations, should be a positive integer
+        :param value_factor: the final value factor
+        """
+        simulate_steps = simulate_steps - 1
+
+        self.sub_cell = BasicInferUnit(sizesnodes, sizeanodes, in_state_factor,
+                                       cross_state_factor)
+
+        self.in_state_factor = self.sub_cell.in_state_factor
+        self.cross_state_factor = self.sub_cell.cross_state_factor
+
+        self.sizesnodes = sizesnodes
+        self.sizeanodes = sizeanodes
+        self.value_factor = value_factor
+        self.create_init_state()
+
+        self.all_input = tf.fill([
+            tf.shape(self.init_belief)[0], simulate_steps - 3,
+            self.sub_cell.input_size
+        ], 0.0)
+        self.all_input = tf.concat([self.all_input, self.final_step_input],
+                                   axis=1)
+
+        self.objv = []
+        all_input = self.all_input
+
+        step = tf.constant(0, dtype=tf.int32)
+        max_steps = 2 * BPIter + simulate_steps
+        simulate_steps = simulate_steps
+        self.max_steps = max_steps
+        self.simulate_steps = simulate_steps
+
+        def update_value_msg_state(state, msg):
+            state = tf.reshape(state, [-1, self.sub_cell.state_size])
+            belief, others = tf.split(
+                state, [
+                    np.sum(self.sizesnodes),
+                    self.sub_cell.state_size - np.sum(self.sizesnodes)
+                ],
+                axis=1)
+
+            belief = tf.split(belief, self.sizesnodes, axis=1)
+            msg = tf.split(msg, self.sizesnodes, axis=1)
+
+            nbelief, msg = self.value_factor.LoopyBP([self.value_factor],
+                                                     [belief], [msg])
+
+            return tf.expand_dims(
+                tf.concat([tf.concat(nbelief[0], axis=1), others], axis=1),
+                1), tf.concat(
+                    msg[0], axis=1)
+
+        def while_condition(step,
+                            infer_input,
+                            infer_state,
+                            infer_prev_output,
+                            infer_prev_state,
+                            value_msg=None):
+            return tf.less(step, max_steps)
+
+        def infer_loop_body(step,
+                            infer_input,
+                            infer_state,
+                            infer_prev_output,
+                            infer_prev_state,
+                            value_msg=None):
+            """
+            step: current step
+            max_steps: max_steps = simulate_steps + bp_steps
+            simulate_steps: simulate_steps
+            """
+            infer_input_ = tf.reshape(infer_input,
+                                      [-1, self.sub_cell.input_size])
+            infer_input_state_ = tf.reshape(infer_state,
+                                            [-1, self.sub_cell.state_size])
+
+            # self.sub_cell is a BasicInferUnit
+            # the input include belief for state (t), in state msg (t),
+            # belief for action (t) and cross state msg (t)
+            # the state include next belief for state (t + 1), in state msg (t + 1)
+            # the output include belief for state (t+1), in state msg (t + 1),
+            # belief for action (t) and cross state msg (t)
+            # the output stat einclude belief for state (t) and in state msg (t)
+            infer_output, infer_output_state = self.sub_cell(
+                infer_input_, infer_input_state_)
+
+            # the output and stae will be put to infer_prev_output and infer_prev_state
+            infer_output = tf.reshape(infer_output, tf.shape(infer_input))
+            infer_output_state = tf.reshape(infer_output_state,
+                                            tf.shape(infer_state))
+
+            # take those belief for state (t + 1) and in state msg (t+ 1) out
+            infer_output_bs, infer_output_others = tf.split(
+                infer_output, [
+                    self.sub_cell.state_size,
+                    self.sub_cell.input_size - self.sub_cell.state_size
+                ],
+                axis=2)
+            prev_output_bs, prev_output_others = tf.split(
+                infer_prev_output, [
+                    self.sub_cell.state_size,
+                    self.sub_cell.input_size - self.sub_cell.state_size
+                ],
+                axis=2)
+
+            # see the diagram of pipeline
+            # infer_output_bs and prev_output_others will be composed to
+            # get the input for next stage
+
+            # if step < simulate_steps - 1, the next input state should
+            # always be infer_output_state,
+            # if step >= simulate_steps - 1, if (step - simulate_steps + 1) % 2 == 1
+            # the next input state should be infer_output_state
+            # otherwise it is infer_output_state[:, 1:, :]
+            infer_state_prefix = tf.cond(
+                tf.logical_or(
+                    tf.less(step, simulate_steps - 1),
+                    tf.equal(tf.floormod(step - simulate_steps + 1, 2),
+                             1)), lambda: infer_output_state,
+                lambda: infer_output_state[:, 1:, :])
+            if (value_msg is not None):
+                nstate, value_msg = tf.cond(
+                    tf.equal(tf.floormod(step, 2), 1),
+                    lambda: update_value_msg_state(prev_output_bs[:, -1:, :], value_msg),
+                    lambda: (prev_output_bs[:, -1:, :], value_msg))
+            else:
+                # nstate is the last state
+                nstate = tf.cond(
+                    tf.equal(tf.floormod(step, 2),
+                             1), lambda: prev_output_bs[:, -1:, :],
+                    lambda: prev_output_bs[:, 0:0, :])
+
+            infer_state_ = tf.concat([infer_state_prefix, nstate], axis=1)
+
+
+
+            infer_input_prefix = tf.cond(tf.less(step, simulate_steps - 1),
+                                         lambda: all_input[:,
+                                                           (step+1):(step+2), :],
+                                         lambda: tf.cond(tf.logical_and(tf.greater(step, simulate_steps - 1),
+                                                                        tf.equal(tf.floormod(step - simulate_steps, 2), 0)),
+                                                         lambda: tf.concat([infer_prev_state[:, 0:1, :],
+                                                                            prev_output_others[:, 0:1, :]], axis=2),
+                                                         lambda: all_input[:, 0:0, :])
+                                         )
+
+            infer_input_suffix = tf.cond(tf.less(step, 1),
+                                         lambda: all_input[:, 0:0, :],
+                                         lambda: tf.cond(tf.logical_and(tf.greater(step, simulate_steps - 1),
+                                                                        tf.equal(tf.floormod(step - simulate_steps, 2), 0)),
+                                                         lambda: tf.concat([
+                                                             tf.slice(infer_output_bs, [0, 0, 0],
+                                                                      [tf.shape(infer_output)[0],
+                                                                       tf.shape(infer_prev_output)[
+                                                                          1] - 1,
+                                                                       tf.shape(infer_output_bs)[2]]),
+                                                             tf.slice(prev_output_others, [0, 1, 0],
+                                                                      [tf.shape(infer_prev_output)[0],
+                                                                       tf.shape(infer_prev_output)[
+                                                                          1] - 1,
+                                                                       tf.shape(prev_output_others)[2]])], axis=2),
+                                                         lambda: tf.concat([
+                                                             tf.slice(infer_output_bs, [0, 0, 0],
+                                                                      [tf.shape(infer_output)[0],
+                                                                       tf.shape(infer_prev_output)[
+                                                                          1],
+                                                                       tf.shape(infer_output_bs)[2]]),
+                                                             tf.slice(prev_output_others, [0, 0, 0],
+                                                                      [tf.shape(infer_prev_output)[0],
+                                                                       tf.shape(infer_prev_output)[
+                                                                          1],
+                                                                       tf.shape(prev_output_others)[2]])], axis=2)
+                                                         ))
+
+            infer_input_ = tf.concat([infer_input_prefix, infer_input_suffix],
+                                     axis=1)
+
+            if (value_msg is not None):
+                return tf.add(
+                    step, 1
+                ), infer_input_, infer_state_, infer_output, infer_output_state, value_msg
+            else:
+                return tf.add(
+                    step, 1
+                ), infer_input_, infer_state_, infer_output, infer_output_state
+
+        def infer_loop_body_full(step, infer_input, infer_state,
+                                 infer_prev_output, infer_prev_state,
+                                 value_msg):
+            return infer_loop_body(step, infer_input, infer_state,
+                                   infer_prev_output, infer_prev_state,
+                                   value_msg)
+
+        def while_condition_full(step, infer_input, infer_state,
+                                 infer_prev_output, infer_prev_state,
+                                 value_msg):
+            return while_condition(step, infer_input, infer_state,
+                                   infer_prev_output, infer_prev_state,
+                                   value_msg)
+
+        infer_input = all_input[:, 0:1, :]
+        infer_input = tf.placeholder_with_default(
+            infer_input, shape=[None, None, self.sub_cell.input_size])
+        infer_state = tf.expand_dims(self.zero_state, 1)
+        infer_state = tf.placeholder_with_default(
+            infer_state, shape=[None, None, self.sub_cell.state_size])
+        infer_prev_output = tf.placeholder_with_default(
+            infer_input[:, 0:0, :],
+            shape=[None, None, self.sub_cell.input_size])
+        infer_prev_state = tf.placeholder_with_default(
+            infer_state[:, 0:0, :],
+            shape=[None, None, self.sub_cell.state_size])
+        value_msg = self.value_msg
+
+        if (self.value_factor is not None):
+            lp_vars = (step, infer_input, infer_state, infer_prev_output,
+                       infer_prev_state, value_msg)
+            _, _, _, final_output, final_state, _ =\
+                tf.while_loop(cond=while_condition_full,
+                              body=infer_loop_body_full,
+                              loop_vars=lp_vars)
+        else:
+            lp_vars = (step, infer_input, infer_state, infer_prev_output,
+                       infer_prev_state)
+            _, final_input, _, final_output, final_state =\
+                tf.while_loop(cond=while_condition,
+                              body=infer_loop_body,
+                              loop_vars=lp_vars)
+
+        print(final_output)
+        final_state1, _, final_action, _, _, _ =\
+            self.sub_cell.split_input(final_output[:, 0, :])
+        final_state2, _, _, _, _, _ =\
+            self.sub_cell.split_input(final_output[:, 1, :])
+        self.final_action = final_action
+        self.final_final_action = final_action
+        self.final_state = final_state1
+        self.final_state_tp = final_state2
+        self.final_output = final_output
+
+        fstate_odd, ismsg_odd, fact_even, \
+            fcmsg_stt_even, fcmsg_att_even, fcmsg_sttp_even = \
+            self.sub_cell.split_input(final_output, axis=2)
+        _, _, fact_odd,\
+            fcmsg_stt_odd, fcmsg_att_odd, fcmsg_sttp_odd = \
+            self.sub_cell.split_input(final_input, axis=2)
+        fstate_even, ismsg_even = \
+            self.sub_cell.split_state(final_state, axis=2)
+
+        self.final_belief_state = []
+        self.final_belief_action = []
+        self.final_ismsg = []
+        self.final_csmsg = [[], [], []]
+
+        # the real simulate step is simulate steps + 1
+        for step in range(int(np.ceil((self.simulate_steps + 1) / 2))):
+            rstep = step
+
+            self.final_belief_state.append(
+                [fs_even[:, rstep, :] for fs_even in fstate_even])
+            self.final_ismsg.append(
+                [is_even[:, rstep, :] for is_even in ismsg_even])
+            if 2 * rstep < self.simulate_steps + 1:
+                self.final_belief_action.append(
+                    [fa_even[:, rstep, :] for fa_even in fact_even])
+                self.final_csmsg[0].append(
+                    [fst_even[:, rstep, :] for fst_even in fcmsg_stt_even])
+                self.final_csmsg[1].append(
+                    [fsa_even[:, rstep, :] for fsa_even in fcmsg_att_even])
+                self.final_csmsg[2].append(
+                    [fstt_even[:, rstep, :] for fstt_even in fcmsg_sttp_even])
+
+            # assume that simulate_steps = 31
+            # max_step = 15, the last
+            if (rstep * 2 + 1 < self.simulate_steps + 1):
+                self.final_belief_state.append(
+                    [fs_odd[:, rstep, :] for fs_odd in fstate_odd])
+                self.final_ismsg.append(
+                    [is_odd[:, rstep, :] for is_odd in ismsg_odd])
+            if (rstep * 2 + 2 < self.simulate_steps + 1):
+                self.final_belief_action.append(
+                    [fa_odd[:, rstep, :] for fa_odd in fact_odd])
+                self.final_csmsg[0].append(
+                    [fst_odd[:, rstep, :] for fst_odd in fcmsg_stt_odd])
+                self.final_csmsg[1].append(
+                    [fsa_odd[:, rstep, :] for fsa_odd in fcmsg_att_odd])
+                self.final_csmsg[2].append(
+                    [fstt_odd[:, rstep, :] for fstt_odd in fcmsg_sttp_odd])
+
+    def create_init_state(self):
+        self.init_belief = tf.placeholder(
+            tf.float32, [None] + [3, np.sum(self.sub_cell.sizesnodes)])
+        self.init_action = tf.placeholder(
+            tf.float32, [None] + [3, np.sum(self.sub_cell.sizeanodes)])
+
+        init_msg = tf.fill([
+            tf.shape(self.init_belief)[0], 3,
+            np.sum(self.sub_cell.in_state_msg_siz)
+        ], 0.0)
+
+        def update_value_msg(belief, msg):
+            belief = tf.split(belief, self.sizesnodes, axis=1)
+            msg = tf.split(msg, self.sizesnodes, axis=1)
+
+            nbelief, msg = self.value_factor.LoopyBP([self.value_factor],
+                                                     [belief], [msg])
+
+            return tf.concat(nbelief[0], axis=1), tf.concat(msg[0], axis=1)
+
+        if (self.value_factor is not None):
+            value_msg = tf.zeros_like(self.init_belief[:, 0, :])
+            self.value_factor = self.value_factor(self.init_belief[:, 0, :])
+            ninit_belief, self.value_msg = update_value_msg(
+                self.init_belief, value_msg)
+        else:
+            self.value_msg = self.init_belief[0:0, 0, :]
+            ninit_belief = self.init_belief
+
+        self.init_state = tf.concat([ninit_belief, init_msg], axis=2)
+        self.zero_state = tf.zeros_like(self.init_state[:, 0, :])
+
+        input_padding = tf.fill([
+            tf.shape(self.init_belief)[0], 3, self.sub_cell.input_size -
+            self.sub_cell.state_size - np.sum(self.sub_cell.sizeanodes)
+        ], 0.0)
+
+        self.final_step_input = tf.concat(
+            [self.init_state, self.init_action, input_padding], axis=2)
 
 
 class InferNetNoRepeatComputeRNNBothWaysBP:

@@ -6,6 +6,7 @@ import numpy as np
 import tensorflow as tf
 from lib.BasicInferUnit import InferNetRNN, InferNetPipeLine, InferNetNoRepeatComputeRNN
 import factors.base as freeway_factors
+from constants import BP_STEPS, SIM_STEPS
 
 BP = True
 
@@ -107,6 +108,8 @@ class FreewayBaseAgent:
 
         self.all_state_dim = variable_range
         self.action_dim = [3]
+        self.simulate_steps = SIM_STEPS
+        self.max_bp_steps = BP_STEPS
 
         # with tf.variable_scope(self.scope + '_infer_net'):
         self.factors = factors
@@ -116,7 +119,7 @@ class FreewayBaseAgent:
         self.state_transition_factors = []
         self.add_in_state_factor()
         self.add_cross_state_factor()
-        self.infer_net = InferNetRNN(
+        self.infer_net = InferNetPipeLine(
             self.all_state_dim,
             self.action_dim,
             self.simulate_steps,
@@ -126,9 +129,10 @@ class FreewayBaseAgent:
         )
 
         self.init_state_pl = self.infer_net.init_belief
+        self.init_action_pl = self.infer_net.init_action
         self.obj_v = self.infer_net.objv
         self.final_action_belief = self.infer_net.final_final_action
-        self.final_state = self.infer_net.final_final_state
+        self.final_state = self.infer_net.final_state
 
         # self.final_state = self.infer_net.final_state
 
@@ -201,13 +205,13 @@ class FreewayBaseAgent:
         #     self.car_move_factors = [self.factors.CarMovementConvFactor(car=i + 1, train=True) for i in range(10)]
         #     self.chicken_move_factor = self.factors.ChickenMovementDownsampledFactor(train=True)
         # else:
-        self.car_move_factors = [self.factors.CarMovementFactor(car=i+1, train=True) for i in range(10)]
+        self.car_move_factors = [self.factors.CarMovementConvFactor(car=i+1, train=True) for i in range(10)]
         self.chicken_move_factor = self.factors.ChickenMovementFactor(train=True)
 
         self.cross_state_factor = [
             self.create_cross_state_factor(
                 [variable_mapping["car"+str(i+1)+"_x"]],
-                [],  # dummy action
+                [0],  # dummy action
                 [variable_mapping["car"+str(i+1)+"_x"]],
                 self.car_move_factors[i]
             ) for i in range(10)

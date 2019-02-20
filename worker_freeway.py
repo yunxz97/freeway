@@ -82,7 +82,6 @@ class Worker(object):
         count = 1
         cum_reward = [0 for _ in range(self.num_env)]
         while episode_i < n_episodes:
-
             # 1) sync from global model to local model
             self._copy_to_local()
 
@@ -97,7 +96,6 @@ class Worker(object):
                 print('state     :', cur_state[0][0].tolist())
                 action = self.local_model.get_action(
                     [self.process_observation(state) for state in cur_state], self.sess)
-                print(np.argmax(action, axis=1))
                 # action = self.local_model.get_action(cur_state, self.sess)
                 next_state, reward, done = deepcopy(self.env.step(np.argmax(action, axis=1)))
 
@@ -168,7 +166,7 @@ class Worker(object):
             reward_batch_consolidated = []
 
             # 3) convert the t_max steps into a batch
-            for idx, steps in enumerate(steps_batch) :
+            for idx, steps in enumerate(steps_batch):
                 if not steps :
                     continue
                 if steps[-1].done:
@@ -225,33 +223,24 @@ class Worker(object):
                 self.local_model.agent.init_state_pl: cur_state_batch_consolidated,
                 self.local_model.input_r: reward_batch_consolidated
             }
-            # print([
-            #     len(feed_dict[self.local_model.input_s]),
-            #     len(feed_dict[self.local_model.input_sprime]),
-            #     len(feed_dict[self.local_model.input_a]),
-            #     len(feed_dict[self.local_model.advantage]),
-            #     len(feed_dict[self.local_model.target_v]),
-            #     len(feed_dict[self.local_model.agent.init_state_pl]),
-            #     len(feed_dict[self.local_model.input_r]),
-            # ])
-            # print([
-                # feed_dict[self.local_model.input_s][0].shape,
-                # feed_dict[self.local_model.input_sprime][0].shape,
-                # feed_dict[self.local_model.input_a][0].shape,
-                # feed_dict[self.local_model.advantage],
-                # feed_dict[self.local_model.target_v],
-                # feed_dict[self.local_model.agent.init_state_pl][0].shape,
-                # feed_dict[self.local_model.input_r],
-            # ])
 
-            if type(self.local_model.agent.infer_net) == InferNetPipeLine:
-                feed_dict[self.local_model.agent.infer_net.simulate_steps] = self.local_model.SIM_STEPS
-                feed_dict[self.local_model.agent.infer_net.max_steps] = self.local_model.SIM_STEPS + (self.local_model.BP_STEPS - 1) * 2
+            batch_size = len(cur_state_batch_consolidated)
+
+            if (type(self.local_model.agent.infer_net) == InferNetPipeLine):
+                feed_dict[self.local_model.agent.infer_net.init_action] = np.zeros(
+                    [len(action_batch_consolidated), 3, np.sum(self.local_model.agent.action_dim)])
+                zero_placeholder = np.zeros([batch_size, 2, np.sum(self.local_model.agent.all_state_dim)])
+                cur_state_batch_consolidated = np.expand_dims(cur_state_batch_consolidated, axis=1)
+                feed_dict[self.local_model.agent.init_state_pl] = np.concatenate(
+                    [zero_placeholder, cur_state_batch_consolidated], axis=1)
+                # cur_state_batch_consolidated = np.repeat(
+                #     np.expand_dims(cur_state_batch_consolidated, axis=1), 3, axis=1)
+                # feed_dict[self.local_model.agent.init_state_pl] = cur_state_batch_consolidated
 
             v_l, p_l, e_l, rl_loss, sl_loss, \
-            _, _,  \
+            _, _, _, _, \
             v_n_rl, v_n_sl, v_n_total, \
-            rew_loss, trans_loss, sn, nsn, an = self.sess.run(
+            rew_loss, trans_loss, sn, nsn, an, rf = self.sess.run(
             # v_l, p_l, e_l, rl_loss, sl_loss, \
             # v_n_rl, v_n_sl, v_n_total, \
             # rew_loss, trans_loss, sn, nsn, an = self.sess.run(
@@ -261,8 +250,8 @@ class Worker(object):
                     self.local_model.supervised_loss,
                     self.local_model.gradients_rl,
                     self.local_model.apply_gradients_rl,
-                    # self.local_model.gradients_sl,
-                    # self.local_model.apply_gradients_sl,
+                    self.local_model.gradients_sl,
+                    self.local_model.apply_gradients_sl,
                     self.local_model.var_norms_rl,
                     self.local_model.var_norms_sl,
                     self.local_model.var_norms_total,
@@ -270,8 +259,12 @@ class Worker(object):
                     self.local_model.transition_loss,
                     self.local_model.state_nodes,
                     self.local_model.next_state_nodes,
-                    self.local_model.action_nodes
+                    self.local_model.action_nodes,
+                    self.local_model.reward_factor_value
                 ], feed_dict)
+
+            if is_reset_needed:
+                print('reward factor:', rf)
 
             mean_reward = np.mean(reward_batch_consolidated)
             mean_value = np.mean(R_batch_consolidated)
