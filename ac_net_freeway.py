@@ -5,7 +5,7 @@ import tensorflow as tf
 from agents.base import FreewayBaseAgent as FreewayAgent
 import tf_utils
 from lib.BasicInferUnit import InferNetPipeLine
-from constants import TEMPERATURE, GAMMA, SL_ENABLE, LAYER_OVER_POLICY
+from constants import TEMPERATURE, GAMMA, SL_ENABLE, LAYER_OVER_POLICY, ALWAYS_ARGMAX_ACTION
 
 Temperature = TEMPERATURE
 
@@ -76,6 +76,13 @@ class ACNetFreeway(object):
 
             self.var_norms_total = tf.global_norm(self.model_variables_rl + self.model_variables_sl)
 
+        nodes = tf.get_default_graph().as_graph_def().node
+        node_names = [n.name for n in nodes]
+        node_sizes = [[int(a.size) for a in n.attr['shape'].shape.dim] for n in nodes]
+        node_name_size_pairs = list(zip(node_names, node_sizes))
+        print(*[ns for ns in node_name_size_pairs if len(ns[1]) > 0], sep='\n')
+        # print([s for s in node_sizes if len(s) > 0])
+
     def get_sl_loss(self):
         cross_state_factors = self.agent.state_transition_factors
         reward_factors_instate_stprime = self.agent.reward_factors_instate_stprime
@@ -96,7 +103,7 @@ class ACNetFreeway(object):
                 action_nodes, cross_state_factors, next_state_nodes, state_nodes)
 
             reward_loss = self.get_loss_for_reward_factors(
-                reward_factors_instate_st,reward_factors_instate_stprime , reward_factor_crossstate, state_nodes,
+                reward_factors_instate_st, reward_factors_instate_stprime, reward_factor_crossstate, state_nodes,
                 next_state_nodes, action_nodes, reward_targets)
         else:
             transition_loss = tf.constant(0)
@@ -155,7 +162,6 @@ class ACNetFreeway(object):
         #                                                                 name='sl_loss_' + factor['name'])
         return loss_for_potential
 
-
     def get_loss_transition_cross_entropy(self, action_nodes,
                                           cross_state_factors,
                                           next_state_nodes, state_nodes):
@@ -170,7 +176,6 @@ class ACNetFreeway(object):
         if loss_transition_cross_entropy is None:
             return tf.constant(0)
         return loss_transition_cross_entropy
-
 
     def get_loss_for_reward_factors(
             self, reward_factors_instate_st,reward_factors_instate_stprime, reward_factor_crossstate,
@@ -332,6 +337,7 @@ class ACNetFreeway(object):
                model_variables_rl, model_variables_sl, final_state
 
     def get_action(self, state, sess):
+
         state = np.reshape(state, [-1, np.sum(self.agent.all_state_dim)])
 
         if type(self.agent.infer_net) == InferNetPipeLine:
@@ -352,9 +358,11 @@ class ACNetFreeway(object):
         print('policy: ', policy)
         action = np.zeros([np.shape(state)[0], int(np.sum(self.agent.action_dim))])
         for idx, p in enumerate(policy):
-            action[idx,
-                   np.random.choice(range(int(np.sum(self.agent.action_dim))), p=p)] = 1
-            # action[idx, np.argmax(p)] = 1
+            if ALWAYS_ARGMAX_ACTION:
+                action[idx, np.argmax(p)] = 1
+            else:
+                action[idx,
+                       np.random.choice(range(int(np.sum(self.agent.action_dim))), p=p)] = 1
         print('action: ', np.argmax(action, axis=1))
         return action
 

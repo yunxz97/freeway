@@ -450,17 +450,23 @@ class ConvFactor1D(Factors):
             return padded_val
 
     def getTransitionLoss(self, gather_indices, labels, all_labels, name):
-        curr_pos = tf.one_hot(all_labels[0], self.nlabels)
+        # curr_pos = tf.one_hot(all_labels[0], self.nlabels)
+        curr_pos = tf.squeeze(tf.one_hot(all_labels[0], self.nlabels), axis=1)
         act = tf.one_hot(all_labels[1], self.nchannels)
 
+        # print(curr_pos.get_shape())
         curr_pos = tf.expand_dims(curr_pos, 2)
         # with tf.control_dependencies([tf.print(curr_pos[:, :, 0])]):
         curr_pos_padded = self.padding_inputs(curr_pos, 0)
 
+        # print(curr_pos.get_shape())
+        # print(curr_pos_padded.get_shape())
+
         mov_direcs = act
         mov_direcs_expanded = tf.expand_dims(mov_direcs, axis=1)
-        c2n = tf.nn.conv1d(curr_pos_padded, self.k, 1,
-                           'VALID') * mov_direcs_expanded
+
+        c2n = tf.nn.conv1d(curr_pos_padded, self.k, 1, 'VALID')
+        c2n = c2n * mov_direcs_expanded
 
         pred_next = tf.reduce_sum(c2n, axis=2)
         logz = tf.log(tf.reduce_sum(pred_next, axis=1, keepdims=True))

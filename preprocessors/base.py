@@ -1,4 +1,4 @@
-from constants import SCREEN_WIDTH, SCREEN_HEIGHT, DOWNSAMPLING
+from constants import SCREEN_WIDTH, SCREEN_HEIGHT, Y_DOWNSAMPLING, X_DOWNSAMPLING
 import numpy as np
 from scipy import signal
 from utils import to_log_probability
@@ -38,8 +38,8 @@ class DDNBasePreprocessor:
         if im is not None:
             self.extract_positions(im)
         else:
-            self.positions_t = [0] * 6 + [159] * 5
-            self.positions_tp1 = [0] * 6 + [159] * 5
+            self.positions_t = [0] * 6 + [SCREEN_WIDTH - 1] * 5
+            self.positions_tp1 = [0] * 6 + [SCREEN_WIDTH - 1] * 5
 
     def extract_positions(self, im):
         import warnings
@@ -146,11 +146,14 @@ class DDNBasePreprocessor:
             mask = (mask_r & mask_g & mask_b)
             car10_pos = np.mean(np.where(mask)[1], dtype=np.int16)
 
-        if DOWNSAMPLING:
-            chicken_pos //= 4
-
         result = np.array([chicken_pos, car1_pos, car2_pos, car3_pos, car4_pos,
                            car5_pos, car6_pos, car7_pos, car8_pos, car9_pos, car10_pos], dtype=np.int16)
+        if Y_DOWNSAMPLING:
+            result[0] = int(round(result[0] / 4))
+        if X_DOWNSAMPLING:
+            for i in range(1, 11):
+                result[i] = int(round(result[i] / 2))
+
         self.positions_t = self.positions_tp1
         self.positions_tp1 = result
         return result

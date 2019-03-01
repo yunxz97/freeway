@@ -157,7 +157,6 @@ def main():
     for w in workers:
         w.set_sess(sess)
 
-
     if load_model:
         print('Loading Model...')
         ckpt = tf.train.get_checkpoint_state(model_path)

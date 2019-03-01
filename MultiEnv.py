@@ -63,15 +63,15 @@ class ProcEnv :
                     self._env.start()
                     self.w_conn.send(DONE)
                 elif msg == STEP:
-                    obs, rew, done, info = self._env.step(data)
+                    obs, rew, done = self._env.step(data)
                     # print(obs, rew, done)
                     for shm, ob in zip(self.shm, [obs] + [rew, done]):
                         np.copyto(dst=shm[self.idx], src=ob)
                     self.w_conn.send(DONE)
                     # print('shm in _run()', self.shm)
                 elif msg == RESET:
-                    obs = self._env.reset()
-                    for shm, ob in zip(self.shm, [obs] + [0, 0]):
+                    obs, rew, done = self._env.reset()
+                    for shm, ob in zip(self.shm, [obs] + [rew, done]):
                         np.copyto(dst=shm[self.idx], src=ob)
                     self.w_conn.send(DONE)
                 elif msg == STOP:

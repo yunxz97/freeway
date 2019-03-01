@@ -1,7 +1,8 @@
 import numpy as np
 import gym
 from preprocessors.base import DDNBasePreprocessor
-from constants import SCREEN_HEIGHT, SCREEN_WIDTH, ENV_MAX_STEPS, GAMMA, VIDEO_DIR, ENV_MAX_STEPS, GAMMA
+from constants import SCREEN_HEIGHT, SCREEN_WIDTH, VIDEO_DIR, ENV_MAX_STEPS, GAMMA, \
+    REWARD_SHAPING, N_ACTION_REPEAT, USE_MULTIENV
 import os
 from gym.wrappers.monitoring.video_recorder import VideoRecorder
 from datetime import datetime
@@ -13,11 +14,6 @@ class FreewayEnvironment:
     gamma = GAMMA
 
     def __init__(self, args = {}, env="Freeway-v0"):
-        # self.artificial_reward = np.zeros((SCREEN_HEIGHT, ))
-        # reward_step = SCREEN_HEIGHT // 10
-        # reward_signal_pos = np.arange(SCREEN_HEIGHT-1, -1, -reward_step)
-        # # [51 46 41 36 31 26 21 16 11  6  1]
-        # self.artificial_reward[reward_signal_pos] = np.arange(11)[:len(reward_signal_pos)]
         self.artificial_reward = np.arange(5, -2, -7 / SCREEN_HEIGHT)[-SCREEN_HEIGHT:]
         # print(self.artificial_reward)
         self.max_steps = ENV_MAX_STEPS
@@ -36,13 +32,9 @@ class FreewayEnvironment:
         os.makedirs(VIDEO_DIR, exist_ok=True)
 
     def obs_spec(self):
-        if not self.specs:
-            self.make_specs()
         return self.specs['obs']
 
     def act_specs(self):
-        if not self.specs:
-            self.make_specs()
         return self.specs['act']
 
     def start(self):
@@ -60,11 +52,14 @@ class FreewayEnvironment:
         id = sub('[-: ]', '', str(datetime.today()).split('.')[0])
         video_path = os.path.join(VIDEO_DIR, id + '.mp4')
         self.video_recorder = VideoRecorder(self.env, video_path)
-        return obs
+        return obs, 0, 0
 
     def step(self, action):
         self.video_recorder.capture_frame()
-        obs, r, done, info = self.env.step(action)
+        for _ in range(N_ACTION_REPEAT):
+            obs, r, done, info = self.env.step(action)
+            if done:
+                break
         # if r != 0:
         #     print('Success!')
         self.R += r * np.power(GAMMA, self.steps)
@@ -72,7 +67,11 @@ class FreewayEnvironment:
             done = True
         obs = self.extractor.get_obs(obs)
 
-        r = self.artificial_reward[obs[0]]
+        if REWARD_SHAPING:
+            if r > 0:
+                r = 100
+            else:
+                r = self.artificial_reward[obs[0]]
 
         self.steps += 1
         if done:
@@ -82,7 +81,8 @@ class FreewayEnvironment:
             # self.video_recorder.enabled = False
             print(f"Video saved")
         # self.env.render()
-        return obs, r, done, info
+
+        return obs, r, done
 
     def get_info(self):
         return self.steps, self.max_steps

@@ -2,11 +2,10 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 from constants import SCREEN_WIDTH, SCREEN_HEIGHT, SL_ENABLE
-import numpy as np
 import tensorflow as tf
-from lib.BasicInferUnit import InferNetRNN, InferNetPipeLine, InferNetNoRepeatComputeRNN
+from lib.BasicInferUnit import InferNetPipeLine
 import factors.base as freeway_factors
-from constants import BP_STEPS, SIM_STEPS
+from constants import BP_STEPS, SIM_STEPS, TEMPERATURE
 
 BP = True
 
@@ -34,31 +33,6 @@ variable_mapping = {
     "car10_hit": 20,
     "hit": 21
 }
-#
-# variable_range = {
-#     "chicken_y": SCREEN_HEIGHT, # 15 ~ 195
-#     "car1_x": SCREEN_WIDTH, # 8 ~ 160
-#     "car2_x": SCREEN_WIDTH,
-#     "car3_x": SCREEN_WIDTH,
-#     "car4_x": SCREEN_WIDTH,
-#     "car5_x": SCREEN_WIDTH,
-#     "car6_x": SCREEN_WIDTH,
-#     "car7_x": SCREEN_WIDTH,
-#     "car8_x": SCREEN_WIDTH,
-#     "car9_x": SCREEN_WIDTH,
-#     "car10_x": SCREEN_WIDTH,
-#     "car1_hit": 2,
-#     "car2_hit": 2,
-#     "car3_hit": 2,
-#     "car4_hit": 2,
-#     "car5_hit": 2,
-#     "car6_hit": 2,
-#     "car7_hit": 2,
-#     "car8_hit": 2,
-#     "car9_hit": 2,
-#     "car10_hit": 2,
-#     "hit": 2
-# }
 
 variable_range = [
     SCREEN_HEIGHT,
@@ -84,11 +58,6 @@ variable_range = [
     2,
     2
 ]
-
-# if DOWNSAMPLING:
-#     variable_range[0] //= 4
-
-Temperature = 10
 
 
 class FreewayBaseAgent:
@@ -136,7 +105,7 @@ class FreewayBaseAgent:
 
         # self.final_state = self.infer_net.final_state
 
-        self.policy = tf.nn.softmax(self.final_action_belief[0] * Temperature) + 1e-8
+        self.policy = tf.nn.softmax(self.final_action_belief[0] * TEMPERATURE) + 1e-8
 
 
         # self.hidden1 = tf.concat([self.init_state_pl, self.final_action_belief[0]], axis=1)
@@ -151,7 +120,7 @@ class FreewayBaseAgent:
             kernel_initializer=tf.initializers.random_normal(0.01))
 
     def add_in_state_factor(self):
-        # if DOWNSAMPLING:
+        # if Y_DOWNSAMPLING:
         #     self.car_hit_factors = [self.factors.CarHitDownsampledFactor(car=i + 1, train=True) for i in range(10)]
         #     self.hit_factor = self.factors.HitFactor(train=True)
         #     # self.dest_reward_factor = self.factors.DestinationRewardFactor(train=True)
@@ -201,7 +170,7 @@ class FreewayBaseAgent:
         return cfactor
 
     def add_cross_state_factor(self):
-        # if DOWNSAMPLING:
+        # if Y_DOWNSAMPLING:
         #     self.car_move_factors = [self.factors.CarMovementConvFactor(car=i + 1, train=True) for i in range(10)]
         #     self.chicken_move_factor = self.factors.ChickenMovementDownsampledFactor(train=True)
         # else:
