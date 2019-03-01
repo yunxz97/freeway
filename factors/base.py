@@ -96,7 +96,7 @@ class CarMovementConvFactor(ConvFactor1D):
                     speed = (np.array(
                         [.8, 1, 1.333, 2, 4, -4, -2, -1.333, -1, -.8], dtype=np.float32) * N_ACTION_REPEAT)[car - 1]
                 speed = int(round(speed))
-                kernels[:, -speed+hksize] = 1000
+                kernels[:, -speed+hksize] = 1
             else:
                 if X_DOWNSAMPLING:
                     speed = [1, 1, 1, 1, 2, -2, -1, -1, -1, -1][car - 1]
@@ -217,16 +217,14 @@ class HitFactor(FactorWrapper):
     def __init__(self, train=TRAIN_FACTOR_WEIGHTS):
         super().__init__()
 
-        if RANDOM_INIT:
-            transition_mtx = np.ones(([2] * 11))
-        else:
-            transition_mtx = np.zeros([2] * 11)
-            transition_mtx[:, :, :, :, :, :, :, :, :, :, 1] = 1
-            transition_mtx[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1] = 0
-            transition_mtx[:, :, :, :, :, :, :, :, :, :, 0] = 0
-            transition_mtx[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] = 1
+        # no random init for this factor
+        transition_mtx = np.zeros([2] * 11)
+        transition_mtx[:, :, :, :, :, :, :, :, :, :, 1] = 1
+        transition_mtx[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1] = 0
+        transition_mtx[:, :, :, :, :, :, :, :, :, :, 0] = 0
+        transition_mtx[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] = 1
 
-        self.build(transition_mtx, train, SL=SL_ENABLE, RL=False, max_clip_value=1)
+        self.build(transition_mtx, train, SL=False, RL=False, max_clip_value=1)
 
 
 class DestinationRewardFactor(FactorWrapper):

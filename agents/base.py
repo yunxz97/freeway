@@ -5,7 +5,7 @@ from constants import SCREEN_WIDTH, SCREEN_HEIGHT, SL_ENABLE
 import tensorflow as tf
 from lib.BasicInferUnit import InferNetPipeLine
 import factors.base as freeway_factors
-from constants import BP_STEPS, SIM_STEPS, TEMPERATURE
+from constants import BP_STEPS, SIM_STEPS, TEMPERATURE, USE_CONV
 
 BP = True
 
@@ -86,6 +86,7 @@ class FreewayBaseAgent:
         self.reward_factors_instate_stprime = []
         self.reward_factors_crossstate = []
         self.state_transition_factors = []
+        self.in_state_supervised_factors = []
         self.add_in_state_factor()
         self.add_cross_state_factor()
         self.infer_net = InferNetPipeLine(
@@ -120,18 +121,6 @@ class FreewayBaseAgent:
             kernel_initializer=tf.initializers.random_normal(0.01))
 
     def add_in_state_factor(self):
-        # if Y_DOWNSAMPLING:
-        #     self.car_hit_factors = [self.factors.CarHitDownsampledFactor(car=i + 1, train=True) for i in range(10)]
-        #     self.hit_factor = self.factors.HitFactor(train=True)
-        #     # self.dest_reward_factor = self.factors.DestinationRewardFactor(train=True)
-        #     self.Y_reward_factor = self.factors.DestinationRewardDownsampledFactor(train=True)
-        # else:
-        #     self.car_hit_factors = [self.factors.CarHitFactor(car=i+1, train=True) for i in range(10)]
-        #     self.hit_factor = self.factors.HitFactor(train=True)
-        #     # self.dest_reward_factor = self.factors.DestinationRewardFactor(train=True)
-        #     self.Y_reward_factor = self.factors.YRewardFactor(train=True)
-
-
         self.car_hit_factors = [self.factors.CarHitFactor(car=i+1, train=True) for i in range(10)]
         self.hit_factor = self.factors.HitFactor(train=True)
         # self.dest_reward_factor = self.factors.DestinationRewardFactor(train=True)
@@ -141,7 +130,9 @@ class FreewayBaseAgent:
             self.create_in_state_factor(
                 [variable_mapping["chicken_y"], variable_mapping["car"+str(i+1)+"_x"],
                  variable_mapping["car"+str(i+1)+"_hit"]],
-                self.car_hit_factors[i]
+                self.car_hit_factors[i],
+                gather_nodes= [variable_mapping["chicken_y"], variable_mapping["car"+str(i+1)+"_x"]],
+                target_nodes= [variable_mapping["car"+str(i+1)+"_hit"]]
             ) for i in range(10)
         ]
         self.in_state_factor.append(
@@ -162,25 +153,30 @@ class FreewayBaseAgent:
         if SL_ENABLE:
             self.reward_factors_instate_stprime.append(self.in_state_factor[-1])
 
-    def create_in_state_factor(self, factor_nodes, factor):
+    def create_in_state_factor(self, factor_nodes, factor, gather_nodes=None, target_nodes=None):
+        if gather_nodes is None:
+            gather_nodes = []
+        if target_nodes is None:
+            target_nodes = []
         cfactor = dict()
         cfactor['name'] = factor.__class__.__name__
         cfactor['nodes'] = factor_nodes
+        cfactor['gather_nodes'] = gather_nodes
+        cfactor['target_nodes'] = target_nodes
         cfactor['Factor'] = [factor] * (self.simulate_steps)
         return cfactor
 
     def add_cross_state_factor(self):
-        # if Y_DOWNSAMPLING:
-        #     self.car_move_factors = [self.factors.CarMovementConvFactor(car=i + 1, train=True) for i in range(10)]
-        #     self.chicken_move_factor = self.factors.ChickenMovementDownsampledFactor(train=True)
-        # else:
-        self.car_move_factors = [self.factors.CarMovementConvFactor(car=i+1, train=True) for i in range(10)]
+        if USE_CONV:
+            self.car_move_factors = [self.factors.CarMovementConvFactor(car=i+1, train=True) for i in range(10)]
+        else:
+            self.car_move_factors = [self.factors.CarMovementFactor(car=i + 1, train=True) for i in range(10)]
         self.chicken_move_factor = self.factors.ChickenMovementFactor(train=True)
 
         self.cross_state_factor = [
             self.create_cross_state_factor(
                 [variable_mapping["car"+str(i+1)+"_x"]],
-                [0],  # dummy action
+                [],  # dummy action
                 [variable_mapping["car"+str(i+1)+"_x"]],
                 self.car_move_factors[i]
             ) for i in range(10)

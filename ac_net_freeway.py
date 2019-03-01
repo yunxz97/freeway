@@ -85,6 +85,7 @@ class ACNetFreeway(object):
 
     def get_sl_loss(self):
         cross_state_factors = self.agent.state_transition_factors
+        in_state_supervised_factors = self.agent.in_state_supervised_factors
         reward_factors_instate_stprime = self.agent.reward_factors_instate_stprime
         reward_factors_instate_st = self.agent.reward_factors_instate_st
         reward_factor_crossstate = self.agent.reward_factors_crossstate
@@ -100,7 +101,7 @@ class ACNetFreeway(object):
 
         if self.sl_enabled:
             transition_loss = self.get_loss_transition_cross_entropy(
-                action_nodes, cross_state_factors, next_state_nodes, state_nodes)
+                action_nodes, cross_state_factors, in_state_supervised_factors, next_state_nodes, state_nodes)
 
             reward_loss = self.get_loss_for_reward_factors(
                 reward_factors_instate_st, reward_factors_instate_stprime, reward_factor_crossstate, state_nodes,
@@ -113,6 +114,29 @@ class ACNetFreeway(object):
         self.transition_loss = transition_loss
         sl_loss = transition_loss + reward_loss
         return tf.reduce_mean(sl_loss)
+
+    def get_loss_for_instate_supervised_factor(self, factor, state_nodes):
+        # potential = factor['Factor'][0].sl_params
+        gather_node_ids, target_node_ids = factor['gather_nodes'], factor['target_nodes']
+
+        gather_variable_assignments = [
+            state_nodes[state_var] for state_var in gather_node_ids
+        ]
+        target_variable_assignments = [
+            state_nodes[state_var] for state_var in target_node_ids
+        ]
+        all_labels = gather_variable_assignments + target_variable_assignments
+
+        label_indices = self.get_label_indices(target_node_ids,
+                                               state_nodes)
+
+        gather_indices = tf.concat(gather_variable_assignments , axis=1)
+        loss_for_potential = factor['Factor'][0].getTransitionLoss(
+            gather_indices=gather_indices,
+            labels=label_indices,
+            all_labels=all_labels,
+            name=factor['name'])
+        return loss_for_potential
 
     def get_variable_values(self, placeholder, split_desc):
         nodes = tf.split(placeholder, split_desc, axis=1)
@@ -163,7 +187,7 @@ class ACNetFreeway(object):
         return loss_for_potential
 
     def get_loss_transition_cross_entropy(self, action_nodes,
-                                          cross_state_factors,
+                                          cross_state_factors,in_state_supervised_factors,
                                           next_state_nodes, state_nodes):
         loss_transition_cross_entropy = None
         for factor in cross_state_factors:
@@ -173,6 +197,10 @@ class ACNetFreeway(object):
                 loss_transition_cross_entropy = loss_for_potential
             else:
                 loss_transition_cross_entropy += loss_for_potential
+
+        for factor in in_state_supervised_factors:
+            loss_for_potential = self.get_loss_for_instate_supervised_factor(factor, state_nodes)
+            loss_transition_cross_entropy += loss_for_potential
         if loss_transition_cross_entropy is None:
             return tf.constant(0)
         return loss_transition_cross_entropy
