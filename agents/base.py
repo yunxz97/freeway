@@ -124,21 +124,23 @@ class FreewayBaseAgent:
         self.car_hit_factors = [self.factors.CarHitFactor(car=i+1, train=True) for i in range(10)]
         self.hit_factor = self.factors.HitFactor(train=True)
         # self.dest_reward_factor = self.factors.DestinationRewardFactor(train=True)
-        self.dest_reward_factor = self.factors.DestinationRewardFactor(train=True)
+        self.dest_reward_factor = self.factors.YRewardFactor(train=True)
 
         self.in_state_factor = [
             self.create_in_state_factor(
                 [variable_mapping["chicken_y"], variable_mapping["car"+str(i+1)+"_x"],
                  variable_mapping["car"+str(i+1)+"_hit"]],
                 self.car_hit_factors[i],
-                gather_nodes= [variable_mapping["chicken_y"], variable_mapping["car"+str(i+1)+"_x"]],
-                target_nodes= [variable_mapping["car"+str(i+1)+"_hit"]]
+                gather_nodes=[variable_mapping["chicken_y"], variable_mapping["car"+str(i+1)+"_x"]],
+                target_nodes=[variable_mapping["car"+str(i+1)+"_hit"]]
             ) for i in range(10)
         ]
         self.in_state_factor.append(
             self.create_in_state_factor(
                 [variable_mapping["car" + str(i) + "_hit"] for i in range(1, 11)] + [variable_mapping["hit"]],
-                self.hit_factor)
+                self.hit_factor,
+                gather_nodes=[variable_mapping["car"+str(i+1)+"_hit"] for i in range(10)],
+                target_nodes=[variable_mapping['hit']])
         )
         # self.in_state_factor.append(
         #     self.create_in_state_factor(
@@ -151,6 +153,7 @@ class FreewayBaseAgent:
                 self.dest_reward_factor)
         )
         if SL_ENABLE:
+            self.in_state_supervised_factors.extend(self.in_state_factor[:-1])
             self.reward_factors_instate_stprime.append(self.in_state_factor[-1])
 
     def create_in_state_factor(self, factor_nodes, factor, gather_nodes=None, target_nodes=None):

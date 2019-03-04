@@ -126,9 +126,22 @@ class Factors:
         #TODO: rather than passing gather_indices
         # we should pass a list of assignments, i.e., the assignments for each
         # node, and then we combine them inside this function
-        next_state_factor_potential = tcl.flatten(
-            tf.gather_nd(self.sl_params, gather_indices)
-        )  #If no sl params, not to be learnt using Supervised Learning
+
+        rank = gather_indices.shape[-1]
+        try:
+            if rank > 7:
+                next_state_factor_potential = tf.gather_nd(self.sl_params, gather_indices[:, :rank // 2])
+                next_state_factor_potential = tf.gather_nd(next_state_factor_potential, gather_indices[:, rank // 2:])
+            else:
+                next_state_factor_potential = tf.gather_nd(self.sl_params, gather_indices)
+        except AttributeError:
+            return tf.constant(.0)
+        next_state_factor_potential = tcl.flatten(next_state_factor_potential)
+
+        # next_state_factor_potential = tcl.flatten(
+        #     tf.gather_nd(self.sl_params, gather_indices)
+        # )  #If no sl params, not to be learnt using Supervised Learning
+
         labels = tf.stop_gradient(
             tf.one_hot(
                 indices=labels, depth=next_state_factor_potential.shape[1]))
@@ -140,7 +153,10 @@ class Factors:
         return loss_for_potential
 
     def getRewardValue(self, gather_indices):
-        return tf.gather_nd(self.sl_params, gather_indices)
+        try:
+            return tf.gather_nd(self.sl_params, gather_indices)
+        except AttributeError:
+            return tf.constant(.0)
 
     def add_RL_Params(self):
         print("No RL Params")

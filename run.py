@@ -171,7 +171,7 @@ def main():
     #     print(w.eval(session=sess))
     #
     with tf.variable_scope("global/rl_params", reuse=True):
-        w = tf.get_variable("rlDestinationRewardFactor")
+        w = tf.get_variable("rlYRewardFactor")
         print(w.eval(session=sess))
 
     thread_list = []

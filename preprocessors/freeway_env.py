@@ -2,7 +2,7 @@ import numpy as np
 import gym
 from preprocessors.base import DDNBasePreprocessor
 from constants import SCREEN_HEIGHT, SCREEN_WIDTH, VIDEO_DIR, ENV_MAX_STEPS, GAMMA, \
-    REWARD_SHAPING, N_ACTION_REPEAT, USE_MULTIENV
+    REWARD_SHAPING, N_ACTION_REPEAT, SKIP_LANE
 import os
 from gym.wrappers.monitoring.video_recorder import VideoRecorder
 from datetime import datetime
@@ -14,7 +14,7 @@ class FreewayEnvironment:
     gamma = GAMMA
 
     def __init__(self, args = {}, env="Freeway-v0"):
-        self.artificial_reward = np.arange(5, -2, -7 / SCREEN_HEIGHT)[-SCREEN_HEIGHT:]
+        self.artificial_reward = np.arange(2, -2, -4 / SCREEN_HEIGHT)[-SCREEN_HEIGHT:]
         # print(self.artificial_reward)
         self.max_steps = ENV_MAX_STEPS
         self.gamma = GAMMA

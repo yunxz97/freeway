@@ -33,7 +33,7 @@ class ACNetFreeway(object):
         self.target_v, self.policy, self.value, self.action_est, \
         self.model_variables_rl, self.model_variables_sl, self.final_state = self._build_network(name)
         with tf.variable_scope(name + '/rl_params', reuse=True):
-            self.reward_factor_value = tf.get_variable("rlDestinationRewardFactor")
+            self.reward_factor_value = tf.get_variable("rlYRewardFactor")
 
         # 0.5, 0.2, 1.0
         self.value_loss = 0.5 * tf.reduce_mean(tf.square(self.target_v - tf.reshape(self.value, [-1])))
@@ -51,6 +51,8 @@ class ACNetFreeway(object):
             self.supervised_loss = self.get_sl_loss()
             self.gradients_sl = tf.gradients(self.supervised_loss,
                                              self.model_variables_sl)
+            print('gradients ', self.gradients_sl)
+            print('variables ', self.model_variables_sl)
             self.gradients_sl, self.grad_sl_norm = tf.clip_by_global_norm(self.gradients_sl, 5.0)
         else:
             self.supervised_loss = self.get_sl_loss()
@@ -130,7 +132,7 @@ class ACNetFreeway(object):
         label_indices = self.get_label_indices(target_node_ids,
                                                state_nodes)
 
-        gather_indices = tf.concat(gather_variable_assignments , axis=1)
+        gather_indices = tf.concat(gather_variable_assignments, axis=1)
         loss_for_potential = factor['Factor'][0].getTransitionLoss(
             gather_indices=gather_indices,
             labels=label_indices,
@@ -187,7 +189,7 @@ class ACNetFreeway(object):
         return loss_for_potential
 
     def get_loss_transition_cross_entropy(self, action_nodes,
-                                          cross_state_factors,in_state_supervised_factors,
+                                          cross_state_factors, in_state_supervised_factors,
                                           next_state_nodes, state_nodes):
         loss_transition_cross_entropy = None
         for factor in cross_state_factors:

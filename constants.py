@@ -7,16 +7,17 @@ SMALL_NON_ZERO = 1e-100
 LOG_ZERO = -1e3
 
 # switches
-ALWAYS_ARGMAX_ACTION = True
+ALWAYS_ARGMAX_ACTION = False
 USE_MULTIENV = False
 USE_CONV = False
-REWARD_SHAPING = False
+REWARD_SHAPING = True
 Y_DOWNSAMPLING = True
 X_DOWNSAMPLING = True
+SKIP_LANE = True
 REPEAT_ACTION = False
 N_ACTION_REPEAT = 5 if REPEAT_ACTION else 1
 SL_ENABLE = True
-RANDOM_INIT = False
+RANDOM_INIT = True
 # env constants
 ENV_MAX_STEPS = 3000
 SCREEN_WIDTH = 80 if X_DOWNSAMPLING else 160
@@ -27,7 +28,9 @@ MAX_LANE = 10
 PLAYER_MOVE_SPEED = 1 * N_ACTION_REPEAT if Y_DOWNSAMPLING else 4 * N_ACTION_REPEAT
 HIT_IMPACT = 6 if Y_DOWNSAMPLING else 25
 FINISHED_LINE = 22
-LANES = [(167, 187), (151, 169), (135, 153), (119, 137), (104, 121), (87, 104), (71, 89), (55, 73), (39, 57), (23, 41)]
+LANES = [(42, 47), (38, 42), (34, 38), (30, 34), (26, 30), (22, 26), (18, 22), (14, 18), (10, 14), (6, 10)] \
+    if Y_DOWNSAMPLING else \
+    [(167, 187), (151, 169), (135, 153), (119, 137), (104, 121), (87, 104), (71, 89), (55, 73), (39, 57), (23, 41)]
 
 # params
 TEMPERATURE = 1000
@@ -42,8 +45,8 @@ EPISODES = 10000
 LOG_DIR = 'freeway_logs'
 VIDEO_DIR = 'video'
 T_MAX = 8
-RL_LR = 1e-3
-SL_LR = 1e-3
+RL_LR = 2e-3
+SL_LR = 2e-3
 BETA = .01
 GAMMA = .999
 UNIQUE_ID = int(sub('[-: ]', '', str(datetime.today()).split('.')[0]))

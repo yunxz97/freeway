@@ -224,7 +224,7 @@ class HitFactor(FactorWrapper):
         transition_mtx[:, :, :, :, :, :, :, :, :, :, 0] = 0
         transition_mtx[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] = 1
 
-        self.build(transition_mtx, train, SL=False, RL=False, max_clip_value=1)
+        self.build(transition_mtx, train, SL=False, RL=True, max_clip_value=1)
 
 
 class DestinationRewardFactor(FactorWrapper):
@@ -243,6 +243,6 @@ class YRewardFactor(FactorWrapper):
     def __init__(self, dist=SCREEN_HEIGHT, train=TRAIN_FACTOR_WEIGHTS):
         super().__init__()
 
-        transition_mtx = np.arange(1, .99, -.01 / dist)[:dist]
+        transition_mtx = np.arange(20, 1, -19 / dist)[:dist]
         # print(transition_mtx)
-        self.build(transition_mtx, train, SL=SL_ENABLE, RL=True, max_clip_value=dist)
+        self.build(transition_mtx, train, SL=False, RL=True, max_clip_value=dist)
