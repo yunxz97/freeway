@@ -179,7 +179,7 @@ class FreewayBaseAgent:
         self.cross_state_factor = [
             self.create_cross_state_factor(
                 [variable_mapping["car"+str(i+1)+"_x"]],
-                [],  # dummy action
+                [0],  # dummy action
                 [variable_mapping["car"+str(i+1)+"_x"]],
                 self.car_move_factors[i]
             ) for i in range(10)

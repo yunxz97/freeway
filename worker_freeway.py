@@ -70,8 +70,8 @@ class Worker(object):
         self.copy_to_local_op = tf_utils.update_target_graph(
             global_name, worker_name)
 
-        self.summary_writer = tf.summary.FileWriter("{}/train_{}".format(
-            logdir, worker_name))
+        self.summary_writer = tf.summary.FileWriter("{}/train_{}_at_{}".format(
+            logdir, worker_name, constants.UNIQUE_ID))
 
     def set_sess(self, sess):
         self.sess = sess
