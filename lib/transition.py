@@ -466,49 +466,19 @@ class ConvFactor1D(Factors):
             return padded_val
 
     def getTransitionLoss(self, gather_indices, labels, all_labels, name):
-        # curr_pos = tf.one_hot(all_labels[0], self.nlabels)
-        # print('gather indices', gather_indices.shape)
-        # print('labels', labels.shape)
-        # print('all_labels', all_labels[0].shape, all_labels[1].shape, all_labels[2].shape)
-        # print('name', name)
         curr_pos = tf.squeeze(tf.one_hot(all_labels[0], self.nlabels), axis=1)
-        # print('curr_pos', curr_pos.get_shape())
         act = tf.one_hot(all_labels[1], self.nchannels)
 
-        # print(curr_pos.get_shape())
         curr_pos = tf.expand_dims(curr_pos, 2)
         # with tf.control_dependencies([tf.print(curr_pos[:, :, 0])]):
         curr_pos_padded = self.padding_inputs(curr_pos, 0)
 
-        # print('curr_pos_padded', curr_pos_padded.get_shape())
-        # print(curr_pos_padded.get_shape())
-
-        mov_direcs = act
-        # mov_direcs_expanded = tf.expand_dims(mov_direcs, axis=1)
-        mov_direcs_expanded = mov_direcs
-
-        c2n = tf.nn.conv1d(curr_pos_padded, self.k, 1, 'VALID')
-        # print('c2n', c2n.get_shape())
-        # print('act', act.get_shape())
-        # print('mov_direcs_expanded', mov_direcs_expanded.get_shape())
-        c2n = c2n * mov_direcs_expanded
-        # c2n = tf.squeeze(c2n * mov_direcs_expanded, 1)
-        # print('c2n', c2n.get_shape())
+        c2n = tf.nn.conv1d(curr_pos_padded, self.k, 1, 'VALID') * act
 
         pred_next = tf.reduce_sum(c2n, axis=2)
-        # print('pred_next', pred_next.get_shape())
         logz = tf.log(tf.reduce_sum(pred_next, axis=1, keepdims=True))
-        # print('logz', logz.get_shape())
         pred_next = tf.log(tf.clip_by_value(pred_next, 1e-10, 1))
-        # t = -tf.batch_gather(pred_next, tf.expand_dims(tf.cast(all_labels[-1], tf.int32), 1))
-        # print('t', t.get_shape())
-        a = tf.cast(all_labels[-1], tf.int32)
-        # b = tf.expand_dims(a, 1)
-        # print('b', b.get_shape())
-        loss = -tf.batch_gather(pred_next, a)
-        # print('loss', loss.get_shape())
-        # loss = -tf.batch_gather(pred_next, tf.expand_dims(tf.cast(all_labels[-1], tf.int32), 1))
-        loss += logz
+        loss = -tf.batch_gather(pred_next, tf.cast(all_labels[-1], tf.int32)) + logz
         # rlabels = tf.stop_gradient(tf.one_hot(all_labels[-1], self.nlabels))
         # loss = tf.nn.softmax_cross_entropy_with_logits_v2(
         #     labels=rlabels, logits=pred_next)

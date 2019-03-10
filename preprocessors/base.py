@@ -1,4 +1,4 @@
-from constants import SCREEN_WIDTH, SCREEN_HEIGHT, Y_DOWNSAMPLING, X_DOWNSAMPLING, SKIP_LANE, LANES, PLAYER_MOVE_SPEED
+from constants import SCREEN_WIDTH, SCREEN_HEIGHT, Y_DOWNSAMPLING, X_DOWNSAMPLING, LANES, PLAYER_MOVE_SPEED
 import numpy as np
 from scipy import signal
 from utils import to_log_probability
@@ -33,9 +33,12 @@ from math import ceil
 class DDNBasePreprocessor:
     def __init__(self, im=None):
         self.im = im
-        self.positions_t = [0]
+        self.positions_t = [0] * 11
         self.positions_tp1 = self.positions_t
         self.hit_counter = [0] * 10
+        self.ustep = 0
+        self.dstep = 0
+        self.speed = [0] * 11
         if im is not None:
             self.extract_positions(im)
         else:
@@ -187,11 +190,12 @@ class DDNBasePreprocessor:
     def get_obs(self, im):
         self.extract_positions(im)
         self.hit = self.extract_hit()
-        ustep, dstep = self.get_up_and_down_steps()
-        speed = self.positions_tp1 - self.positions_t
+        self.ustep, self.dstep = self.get_up_and_down_steps()
+        self.speed = self.positions_tp1 - self.positions_t
         missing_val_mask = np.logical_or(self.positions_t == 0, self.positions_tp1 == 0)
-        speed[missing_val_mask] = 0
+        self.speed[missing_val_mask] = 0
         obs = np.concatenate([self.positions_tp1, self.hit])
+        # print(self.ustep, self.dstep)
         # print(np.concatenate([self.positions_tp1, self.hit, [ustep, dstep]]).tolist())
         # print(f"state: {np.concatenate([self.positions_tp1, self.hit]).tolist()}")
         return obs
@@ -205,7 +209,6 @@ class DDNBasePreprocessor:
                 dstep = ceil((lane[1] - pos) / PLAYER_MOVE_SPEED)
                 return ustep, dstep
         return 0, 0
-
 
     def get_state(self, observation):
         self.get_obs(observation)

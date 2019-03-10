@@ -2,7 +2,7 @@ import numpy as np
 import gym
 from preprocessors.base import DDNBasePreprocessor
 from constants import SCREEN_HEIGHT, SCREEN_WIDTH, VIDEO_DIR, ENV_MAX_STEPS, GAMMA, \
-    REWARD_SHAPING, N_ACTION_REPEAT, SKIP_LANE
+    REWARD_SHAPING, N_ACTION_REPEAT, USE_MACRO_ACTION
 import os
 from gym.wrappers.monitoring.video_recorder import VideoRecorder
 from datetime import datetime
@@ -55,21 +55,45 @@ class FreewayEnvironment:
         return obs, 0, 0
 
     def step(self, action):
-        self.video_recorder.capture_frame()
+        # self.env.render()
         for _ in range(N_ACTION_REPEAT):
-            obs, r, done, info = self.env.step(action)
+            if USE_MACRO_ACTION:
+                if action in [1, 2] and self.extractor.ustep + self.extractor.dstep != 0 and not self.extractor.hit[-1]:
+                    if self.extractor.dstep < self.extractor.ustep:  # in lower half lane. move to middle or lower lane
+                        while self.extractor.dstep < self.extractor.ustep and not self.extractor.hit[-1]:
+                            obs, r, done, info = self.env.step(action)
+                            self.video_recorder.capture_frame()
+                            obs = self.extractor.get_obs(obs)
+                            if done:
+                                break
+                    else:
+                        while self.extractor.dstep >= self.extractor.ustep and not self.extractor.hit[-1]:
+                            obs, r, done, info = self.env.step(action)
+                            self.video_recorder.capture_frame()
+                            obs = self.extractor.get_obs(obs)
+                            if done:
+                                break
+                else:
+                    obs, r, done, info = self.env.step(action)
+                    self.video_recorder.capture_frame()
+                    obs = self.extractor.get_obs(obs)
+            else:
+                obs, r, done, info = self.env.step(action)
+                self.video_recorder.capture_frame()
+                obs = self.extractor.get_obs(obs)
+
             if done:
                 break
         # if r != 0:
         #     print('Success!')
-        self.R += r * np.power(GAMMA, self.steps)
+        # self.R += r * np.power(GAMMA, self.steps)
+        self.R += r
         if self.steps == self.max_steps:
             done = True
-        obs = self.extractor.get_obs(obs)
 
         if REWARD_SHAPING:
             if r > 0:
-                r = 100
+                r = 10000
             else:
                 r = self.artificial_reward[obs[0]]
 
