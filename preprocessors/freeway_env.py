@@ -2,7 +2,7 @@ import numpy as np
 import gym
 from preprocessors.base import DDNBasePreprocessor
 from constants import SCREEN_HEIGHT, SCREEN_WIDTH, VIDEO_DIR, ENV_MAX_STEPS, GAMMA, \
-    REWARD_SHAPING, N_ACTION_REPEAT, USE_MACRO_ACTION
+    REWARD_SHAPING, N_ACTION_REPEAT, USE_MACRO_ACTION, MULTI_FAC
 import os
 from gym.wrappers.monitoring.video_recorder import VideoRecorder
 from datetime import datetime
@@ -91,6 +91,7 @@ class FreewayEnvironment:
         if self.steps == self.max_steps:
             done = True
 
+        r *= MULTI_FAC
         if REWARD_SHAPING:
             if r > 0:
                 r = 10000

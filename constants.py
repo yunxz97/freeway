@@ -52,6 +52,6 @@ GAMMA = .999
 UNIQUE_ID = int(sub('[-: ]', '', str(datetime.today()).split('.')[0]))
 LOAD_MODEL = False
 SEQUENTIAL = True
-MULTI_FAC = 1
+MULTI_FAC = 100
 LAYER_OVER_POLICY = False
 
