@@ -142,12 +142,15 @@ class Worker(object):
                     for agent_id in range(self.num_env) :
                         if episode_len[agent_id] >= MAX_STEPS or done[agent_id] :
                             agents_to_reset.append(agent_id)
-                    cur_state, _, _ = deepcopy(self.env.reset_partial(agents_to_reset))
+                    if constants.USE_MULTIENV:
+                        cur_state, _, _ = deepcopy(self.env.reset_partial(agents_to_reset))
+                    else:
+                        cur_state = [[self.env.reset()[0]]]
                     for agent_id in agents_to_reset :
                         self.history.append(episode_len[agent_id])
                         summary = tf.Summary()
-                        summary.value.add(tag='Perf/episode_len',simple_value=float(episode_len[agent_id]))
-                        summary.value.add(tag='Perf/episode_reward',simple_value=float(cum_reward[agent_id]))
+                        summary.value.add(tag='Perf/episode_len', simple_value=float(episode_len[agent_id]))
+                        summary.value.add(tag='Perf/episode_reward', simple_value=float(cum_reward[agent_id] / MULT_FAC))
                         self.summary_writer.add_summary(summary, episode_i)
                         print('worker {}: episode {} finished in {} steps, cumulative reward: {}'.format(self.name,
                                                                                                          episode_i,
@@ -155,7 +158,7 @@ class Worker(object):
                                                                                                          cum_reward[agent_id]))
 
                         if episode_i % 10 == 0 and episode_i != 0:
-                            saver.save(self.sess, self.model_path + '/model-' +str(episode_i) + '.cptk')
+                            saver.save(self.sess, self.model_path + '/model-' + str(episode_i) + '.cptk')
                             print("Saved Model")
                         steps_batch.append([])
                         info_batch.append([])

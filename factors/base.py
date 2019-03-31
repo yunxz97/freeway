@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 from lib.transition import Factors, ConvFactor1D
-from constants import SMALL_NON_ZERO, TRAIN_FACTOR_WEIGHTS,\
+from constants import SMALL_NON_ZERO, TRAIN_FACTOR_WEIGHTS, REWARD_SHAPING, USE_MACRO_CHICKEN_POS, \
     SCREEN_WIDTH, SCREEN_HEIGHT, HIT_IMPACT, PLAYER_MOVE_SPEED, Y_DOWNSAMPLING, X_DOWNSAMPLING, SL_ENABLE, RANDOM_INIT,\
     REPEAT_ACTION, N_ACTION_REPEAT
 from utils import to_log_probability
@@ -37,12 +37,15 @@ class FactorWrapper(Factors):
 
 class CarMovementFactor(FactorWrapper):
     # TODO: add support for REPEAT_ACTION
-    def __init__(self, car, dist=SCREEN_WIDTH, train=TRAIN_FACTOR_WEIGHTS):
+    def __init__(self, car, dist=SCREEN_WIDTH, action_dependent=USE_MACRO_CHICKEN_POS, train=TRAIN_FACTOR_WEIGHTS):
         super().__init__()
         assert type(car) is int and 1 <= car <= 10
 
         if RANDOM_INIT:
-            transition_mtx = np.ones([dist, dist])
+            if action_dependent:
+                transition_mtx = np.ones([dist, 3, dist])
+            else:
+                transition_mtx = np.ones([dist, dist])
         else:
             if X_DOWNSAMPLING:
                 speed = [1, 1, 1, 1, 2, -2, -1, -1, -1, -1][car - 1]
@@ -243,6 +246,9 @@ class YRewardFactor(FactorWrapper):
     def __init__(self, dist=SCREEN_HEIGHT, train=TRAIN_FACTOR_WEIGHTS):
         super().__init__()
 
-        transition_mtx = np.arange(20, 1, -19 / dist)[:dist]
-        # print(transition_mtx)
-        self.build(transition_mtx, train, SL=False, RL=True, max_clip_value=dist)
+        if not REWARD_SHAPING:
+            transition_mtx = np.ones(dist)
+        else:
+            transition_mtx = np.arange(20, 1, -19 / dist)[:dist]
+
+        self.build(transition_mtx, train, SL=SL_ENABLE, RL=True, max_clip_value=dist)

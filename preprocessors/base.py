@@ -1,4 +1,5 @@
-from constants import SCREEN_WIDTH, SCREEN_HEIGHT, Y_DOWNSAMPLING, X_DOWNSAMPLING, LANES, PLAYER_MOVE_SPEED
+from constants import SCREEN_WIDTH, SCREEN_HEIGHT, \
+    USE_MACRO_CHICKEN_POS, Y_DOWNSAMPLING, X_DOWNSAMPLING, LANES, PLAYER_MOVE_SPEED, CHICKEN_LANE_Y
 import numpy as np
 from scipy import signal
 from utils import to_log_probability
@@ -38,6 +39,8 @@ class DDNBasePreprocessor:
         self.hit_counter = [0] * 10
         self.ustep = 0
         self.dstep = 0
+        self.in_lane = [0] * 10
+        self.hit = [0] * 10
         self.speed = [0] * 11
         if im is not None:
             self.extract_positions(im)
@@ -65,10 +68,10 @@ class DDNBasePreprocessor:
             match_map = (mask_conv > match_value - .1)
             match_indices = np.where(match_map)[0]
             if match_indices.size == 0:
-                # print("==================================\n" * 2)
                 chicken_pos = self.positions_t[0]
             else:
                 chicken_pos = match_indices[0]
+
 
             # car1
             sub_im = im[170:185]
@@ -152,28 +155,36 @@ class DDNBasePreprocessor:
 
         result = np.array([chicken_pos, car1_pos, car2_pos, car3_pos, car4_pos,
                            car5_pos, car6_pos, car7_pos, car8_pos, car9_pos, car10_pos], dtype=np.int16)
+
         if Y_DOWNSAMPLING:
             result[0] = int(round(result[0] / 4))
+
         if X_DOWNSAMPLING:
             for i in range(1, 11):
                 result[i] = int(round(result[i] / 2))
 
         self.positions_t = self.positions_tp1
         self.positions_tp1 = result
+
         return result
 
     def extract_hit(self):
-        hit = [False] * 10
-        hit[0] = (170 <= self.positions_tp1[0] <= 185) and (40 <= self.positions_tp1[1] <= 50)
-        hit[1] = (150 <= self.positions_tp1[0] <= 170) and (40 <= self.positions_tp1[2] <= 50)
-        hit[2] = (135 <= self.positions_tp1[0] <= 150) and (40 <= self.positions_tp1[3] <= 50)
-        hit[3] = (120 <= self.positions_tp1[0] <= 135) and (40 <= self.positions_tp1[4] <= 50)
-        hit[4] = (105 <= self.positions_tp1[0] <= 120) and (40 <= self.positions_tp1[5] <= 50)
-        hit[5] = (85 <= self.positions_tp1[0] <= 105) and (40 <= self.positions_tp1[6] <= 50)
-        hit[6] = (70 <= self.positions_tp1[0] <= 85) and (40 <= self.positions_tp1[7] <= 50)
-        hit[7] = (55 <= self.positions_tp1[0] <= 70) and (40 <= self.positions_tp1[8] <= 50)
-        hit[8] = (40 <= self.positions_tp1[0] <= 55) and (40 <= self.positions_tp1[9] <= 50)
-        hit[9] = (25 <= self.positions_tp1[0] <= 40) and (40 <= self.positions_tp1[10] <= 50)
+        # hit = [False] * 10
+        # hit[0] = (170 <= self.positions_tp1[0] <= 185) and (36 <= self.positions_tp1[1] <= 54)
+        # hit[1] = (150 <= self.positions_tp1[0] <= 170) and (36 <= self.positions_tp1[2] <= 54)
+        # hit[2] = (135 <= self.positions_tp1[0] <= 150) and (36 <= self.positions_tp1[3] <= 54)
+        # hit[3] = (120 <= self.positions_tp1[0] <= 135) and (36 <= self.positions_tp1[4] <= 54)
+        # hit[4] = (105 <= self.positions_tp1[0] <= 120) and (36 <= self.positions_tp1[5] <= 54)
+        # hit[5] = (85 <= self.positions_tp1[0] <= 105) and (36 <= self.positions_tp1[6] <= 54)
+        # hit[6] = (70 <= self.positions_tp1[0] <= 85) and (36 <= self.positions_tp1[7] <= 54)
+        # hit[7] = (55 <= self.positions_tp1[0] <= 70) and (36 <= self.positions_tp1[8] <= 54)
+        # hit[8] = (40 <= self.positions_tp1[0] <= 55) and (36 <= self.positions_tp1[9] <= 54)
+        # hit[9] = (25 <= self.positions_tp1[0] <= 40) and (36 <= self.positions_tp1[10] <= 54)
+
+        in_lane = [self.positions_tp1[i+1] in range(*CHICKEN_LANE_Y) for i in range(10)]
+        hit = [self.positions_tp1[0] in range(*LANES[i]) and
+               in_lane[i]
+               for i in range(10)]
 
         for i in range(10):
             if self.hit_counter[i] == 0:
@@ -185,11 +196,24 @@ class DDNBasePreprocessor:
 
         hit_combined = any(hit)
 
-        return np.array([*hit, hit_combined], dtype=int)
+        self.in_lane = np.array(in_lane)
+        self.hit = np.array([*hit, hit_combined], dtype=int)
 
     def get_obs(self, im):
         self.extract_positions(im)
-        self.hit = self.extract_hit()
+        self.extract_hit()
+
+        if USE_MACRO_CHICKEN_POS:
+            if self.positions_tp1[0] in range(LANES[0][1], 210):
+                self.positions_tp1[0] = 0
+            elif self.positions_tp1[0] in range(0, LANES[9][0]):
+                self.positions_tp1[0] = 11
+            else:
+                for i, lane in enumerate(LANES):
+                    if self.positions_tp1[0] in range(*lane):
+                        self.positions_tp1[0] = i + 1
+                        break
+
         self.ustep, self.dstep = self.get_up_and_down_steps()
         self.speed = self.positions_tp1 - self.positions_t
         missing_val_mask = np.logical_or(self.positions_t == 0, self.positions_tp1 == 0)
@@ -197,7 +221,7 @@ class DDNBasePreprocessor:
         obs = np.concatenate([self.positions_tp1, self.hit])
         # print(self.ustep, self.dstep)
         # print(np.concatenate([self.positions_tp1, self.hit, [ustep, dstep]]).tolist())
-        # print(f"state: {np.concatenate([self.positions_tp1, self.hit]).tolist()}")
+        # print(f"state preprocessor: {np.concatenate([self.positions_tp1, self.hit]).tolist()}")
         return obs
 
     def get_up_and_down_steps(self):

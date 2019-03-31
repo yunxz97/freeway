@@ -123,8 +123,8 @@ class FreewayBaseAgent:
     def add_in_state_factor(self):
         self.car_hit_factors = [self.factors.CarHitFactor(car=i+1, train=True) for i in range(10)]
         self.hit_factor = self.factors.HitFactor(train=True)
-        # self.dest_reward_factor = self.factors.DestinationRewardFactor(train=True)
-        self.dest_reward_factor = self.factors.YRewardFactor(train=True)
+        # self.reward_factor = self.factors.DestinationRewardFactor(train=True)
+        self.reward_factor = self.factors.YRewardFactor(train=True)
 
         self.in_state_factor = [
             self.create_in_state_factor(
@@ -145,16 +145,16 @@ class FreewayBaseAgent:
         # self.in_state_factor.append(
         #     self.create_in_state_factor(
         #         [variable_mapping["chicken_y"]],
-        #         self.dest_reward_factor)
+        #         self.reward_factor)
         # )
         self.in_state_factor.append(
             self.create_in_state_factor(
                 [variable_mapping["chicken_y"]],
-                self.dest_reward_factor)
+                self.reward_factor)
         )
         if SL_ENABLE:
             self.in_state_supervised_factors.extend(self.in_state_factor[:-1])
-            self.reward_factors_instate_stprime.append(self.in_state_factor[-1])
+            self.reward_factors_instate_st.append(self.in_state_factor[-1])
 
     def create_in_state_factor(self, factor_nodes, factor, gather_nodes=None, target_nodes=None):
         if gather_nodes is None:
@@ -179,7 +179,7 @@ class FreewayBaseAgent:
         self.cross_state_factor = [
             self.create_cross_state_factor(
                 [variable_mapping["car"+str(i+1)+"_x"]],
-                [],  # dummy action
+                [0],  # dummy action
                 [variable_mapping["car"+str(i+1)+"_x"]],
                 self.car_move_factors[i]
             ) for i in range(10)

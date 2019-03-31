@@ -208,7 +208,7 @@ class ACNetFreeway(object):
         return loss_transition_cross_entropy
 
     def get_loss_for_reward_factors(
-            self, reward_factors_instate_st,reward_factors_instate_stprime, reward_factor_crossstate,
+            self, reward_factors_instate_st, reward_factors_instate_stprime, reward_factor_crossstate,
             state_nodes, next_state_nodes, action_nodes, reward_targets):
         next_state_factor_potential = None
         for factor in reward_factors_instate_st:

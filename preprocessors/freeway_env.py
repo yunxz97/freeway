@@ -2,7 +2,7 @@ import numpy as np
 import gym
 from preprocessors.base import DDNBasePreprocessor
 from constants import SCREEN_HEIGHT, SCREEN_WIDTH, VIDEO_DIR, ENV_MAX_STEPS, GAMMA, \
-    REWARD_SHAPING, N_ACTION_REPEAT, USE_MACRO_ACTION, MULTI_FAC
+    REWARD_SHAPING, N_ACTION_REPEAT, USE_MACRO_ACTION, MULTI_FAC, USE_MACRO_CHICKEN_POS, USE_MACRO_NOOP
 import os
 from gym.wrappers.monitoring.video_recorder import VideoRecorder
 from datetime import datetime
@@ -13,7 +13,7 @@ class FreewayEnvironment:
     steps, max_steps = 0, ENV_MAX_STEPS
     gamma = GAMMA
 
-    def __init__(self, args = {}, env="Freeway-v0"):
+    def __init__(self, env="Freeway-v0"):
         self.artificial_reward = np.arange(2, -2, -4 / SCREEN_HEIGHT)[-SCREEN_HEIGHT:]
         # print(self.artificial_reward)
         self.max_steps = ENV_MAX_STEPS
@@ -57,7 +57,56 @@ class FreewayEnvironment:
     def step(self, action):
         # self.env.render()
         for _ in range(N_ACTION_REPEAT):
-            if USE_MACRO_ACTION:
+            if USE_MACRO_CHICKEN_POS:
+                curr_pos = self.extractor.positions_tp1[0]
+
+                obs, r, done, info = self.env.step(action)
+                self.video_recorder.capture_frame()
+                obs = self.extractor.get_obs(obs)
+                next_pos = obs[0]
+
+                if action == 1:
+                    while next_pos == curr_pos and not self.extractor.hit[-1] and next_pos != SCREEN_HEIGHT-1:
+                        obs, r, done, info = self.env.step(action)
+                        self.video_recorder.capture_frame()
+                        obs = self.extractor.get_obs(obs)
+                        next_pos = obs[0]
+                        if done:
+                            break
+                elif action == 2:
+                    while next_pos == curr_pos and not self.extractor.hit[-1] and next_pos != 0:
+                        obs, r, done, info = self.env.step(action)
+                        self.video_recorder.capture_frame()
+                        obs = self.extractor.get_obs(obs)
+                        next_pos = obs[0]
+                        if done:
+                            break
+                else:
+                    if USE_MACRO_NOOP:
+                        if curr_pos in [0, 1]:
+                            while self.extractor.in_lane[curr_pos] and not self.extractor.hit[-1]:
+                                obs, r, done, info = self.env.step(action)
+                                self.video_recorder.capture_frame()
+                                obs = self.extractor.get_obs(obs)
+                                if done:
+                                    break
+                        elif curr_pos in [10, 11]:
+                            while self.extractor.in_lane[curr_pos-2] and not self.extractor.hit[-1]:
+                                obs, r, done, info = self.env.step(action)
+                                self.video_recorder.capture_frame()
+                                obs = self.extractor.get_obs(obs)
+                                if done:
+                                    break
+                        else:
+                            while (self.extractor.in_lane[curr_pos-2] or self.extractor.in_lane[curr_pos]) \
+                                    and not self.extractor.hit[-1]:
+                                obs, r, done, info = self.env.step(action)
+                                self.video_recorder.capture_frame()
+                                obs = self.extractor.get_obs(obs)
+                                if done:
+                                    break
+
+            elif USE_MACRO_ACTION:
                 if action in [1, 2] and self.extractor.ustep + self.extractor.dstep != 0 and not self.extractor.hit[-1]:
                     if self.extractor.dstep < self.extractor.ustep:  # in lower half lane. move to middle or lower lane
                         while self.extractor.dstep < self.extractor.ustep and not self.extractor.hit[-1]:
